@@ -36,13 +36,13 @@ async function fetchComments(postId: string): Promise<Comment[]> {
 
 export default function PostComments({ params }: { params: { postId: string } }) {
   const [comments, setComments] = useState<Comment[]>([]);
-  const [filterOwner, setFilterOwner] = useState(false);
+  const [filtered, setFiltered] = useState(false);
 
   useEffect(() => {
     fetchComments(params.postId).then(setComments);
   }, [params.postId]);
 
-  const displayed = filterOwner
+  const displayed = filtered
     ? comments.flatMap((c) =>
         c.replyAll?.filter((r) => r.userId === 'ranto28') ?? []
       )
@@ -50,13 +50,24 @@ export default function PostComments({ params }: { params: { postId: string } })
 
   return (
     <main className="p-6 space-y-4">
-      <h1 className="text-xl font-bold">Comments for {params.postId}</h1>
-      <button
-        className="underline"
-        onClick={() => setFilterOwner((v) => !v)}
-      >
-        {filterOwner ? 'Show All Comments' : "Show Owner's Replies"}
-      </button>
+      <iframe
+        src={`https://blog.naver.com/ranto28/${params.postId}`}
+        className="w-full h-96 border"
+      />
+      <div className="space-x-2">
+        <button
+          className={`underline ${!filtered ? 'font-bold' : ''}`}
+          onClick={() => setFiltered(false)}
+        >
+          원래 댓글 내역 보기
+        </button>
+        <button
+          className={`underline ${filtered ? 'font-bold' : ''}`}
+          onClick={() => setFiltered(true)}
+        >
+          필터 된 댓글 보기
+        </button>
+      </div>
       <ul className="space-y-2 list-disc pl-6">
         {displayed.map((comment, idx) => (
           <li key={idx}>{comment.contents}</li>
