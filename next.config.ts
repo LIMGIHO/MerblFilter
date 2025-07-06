@@ -1,7 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  images: {
+    domains: ['blogpfthumb.phinf.naver.net'],
+  },
 };
 
 export default nextConfig;
