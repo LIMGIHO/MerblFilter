@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { BlogComment } from '@/app/types/comments';
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -17,15 +18,26 @@ export async function GET(req: NextRequest) {
     // 모든 페이지의 댓글을 합쳐서 반환
     const allComments = await fetchAllNaverComments({ blogId, logNo, groupId, objectId });
     console.log("===14.", allComments);
-    return NextResponse.json({ result: { commentList: allComments } });
+    return NextResponse.json({
+      success: true,
+      result: {
+        commentList: allComments
+      }
+    });
   } catch (e) {
     console.log("===15.", e);
-    return NextResponse.json({ error: 'Failed to fetch comments' }, { status: 500 });
+    return NextResponse.json({
+      success: false,
+      message: 'Failed to fetch comments',
+      result: {
+        commentList: []
+      }
+    }, { status: 500 });
   }
 }
 
 async function fetchAllNaverComments({ blogId, logNo, groupId, objectId }: { blogId: string, logNo: string, groupId: string, objectId: string }) {
-  let allComments: any[] = [];
+  let allComments: BlogComment[] = [];
   
   console.log("===fetchAllNaverComments 시작===", { blogId, logNo, groupId, objectId });
   

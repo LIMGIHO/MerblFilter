@@ -1,5 +1,6 @@
 import { XMLParser } from 'fast-xml-parser';
 import PostList from './PostList';
+import SessionManager from './SessionManager';
 import './posts.css';
 
 async function fetchPosts() {
@@ -28,6 +29,7 @@ export default async function PostsPage() {
 
   return (
     <main className="p-6 space-y-4">
+      <SessionManager />
       <h1 className="text-xl font-bold">Posts</h1>
       <PostList initialPosts={posts} />
     </main>

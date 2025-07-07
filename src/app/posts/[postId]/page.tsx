@@ -1,17 +1,13 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { use } from 'react';
+import Image from 'next/image';
+import { Comment, CommentWithReplies } from '@/app/types/comments';
 
 // URL을 감지하고 링크로 변환하는 함수
 function convertUrlsToLinks(text: string) {
   const urlRegex = /(https?:\/\/[^\s]+)/g;
   return text.replace(urlRegex, (url) => `<a href="${url}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800 underline">${url}</a>`);
-}
-
-interface Comment {
-  contents: string;
-  userId: string;
-  replyAll?: Comment[];
 }
 
 async function fetchComments(postId: string): Promise<Comment[]> {
@@ -22,11 +18,37 @@ async function fetchComments(postId: string): Promise<Comment[]> {
   return json.result?.commentList ?? [];
 }
 
+const ProfileImage = ({ 
+  imageUrl, 
+  isOwner, 
+  size = 'large' 
+}: { 
+  imageUrl?: string | null; 
+  isOwner: boolean; 
+  size?: 'small' | 'large';
+}) => {
+  const defaultImage = 'https://blogimgs.pstatic.net/nblog/comment/login_basic.gif';
+  const classes = size === 'large' 
+    ? 'w-7 h-7 sm:w-12 sm:h-12 rounded-full object-cover border-2'
+    : 'w-5 h-5 sm:w-8 sm:h-8 rounded-full object-cover border';
+
+  const imageSrc = imageUrl || defaultImage;
+
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={imageSrc}
+      alt="프로필"
+      className={`${classes} ${isOwner ? 'border-amber-300' : 'border-gray-200'}`}
+    />
+  );
+};
+
 export default function PostComments({ params }: { params: Promise<{ postId: string }> }) {
   const { postId } = use(params);
   const [showFiltered, setShowFiltered] = useState(false);
   const [showAllComments, setShowAllComments] = useState(false);
-  const [comments, setComments] = useState<any[]>([]);
+  const [comments, setComments] = useState<Comment[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState<number | null>(null);
   const [lastRefreshTime, setLastRefreshTime] = useState<Date | null>(null);
@@ -34,19 +56,20 @@ export default function PostComments({ params }: { params: Promise<{ postId: str
 
   // 모바일 환경 체크
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const checkMobile = () => /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-      setIsMobile(checkMobile());
-    }
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
   // 모바일에서 직접 URL로 접근하는 경우 처리
   useEffect(() => {
     if (isMobile && !showFiltered) {
-      const blogUrl = `https://blog.naver.com/ranto28/${postId}`;
-      // 이전 페이지가 없는 경우 (직접 URL 접근)에만 리다이렉트
-      if (!document.referrer) {
-        window.location.href = blogUrl;
+      const fromList = sessionStorage.getItem('fromList');
+      if (!fromList) {
+        window.location.href = `https://blog.naver.com/ranto28/${postId}`;
       }
     }
   }, [isMobile, showFiltered, postId]);
@@ -56,17 +79,15 @@ export default function PostComments({ params }: { params: Promise<{ postId: str
     if (!postId) return;
     setIsLoading(true);
     try {
-      const commentList = await fetchComments(postId);
-      // 댓글을 날짜순으로 정렬 (최신순)
-      const sortedComments = commentList.sort((a: any, b: any) => {
-        const dateA = new Date(a.regTime || a.regTimeGmt || 0);
-        const dateB = new Date(b.regTime || b.regTimeGmt || 0);
-        return dateB.getTime() - dateA.getTime(); // 최신순
-      });
-      setComments(sortedComments);
-      setLastRefreshTime(new Date());
+      const res = await fetch(`/api/comments?postId=${postId}`);
+      const data = await res.json();
+      console.log('댓글 데이터:', data);
+      if (data.result?.commentList) {
+        setComments(data.result.commentList);
+        setLastRefreshTime(new Date());
+      }
     } catch (error) {
-      console.error('댓글 로딩 중 오류:', error);
+      console.error('댓글 로딩 실패:', error);
     } finally {
       setIsLoading(false);
     }
@@ -101,12 +122,11 @@ export default function PostComments({ params }: { params: Promise<{ postId: str
   const replyComments = comments.filter((comment) => comment.replyLevel === 2);
   
   // 각 원댓글에 대댓글들을 연결
-  const structuredComments = parentComments.map((parent) => {
+  const structuredComments: CommentWithReplies[] = parentComments.map((parent) => {
     const replies = replyComments.filter((reply) => reply.parentCommentNo === parent.commentNo);
     return {
       ...parent,
       replies: replies.sort((a, b) => {
-        // 대댓글은 오래된 순으로 정렬
         const dateA = new Date(a.regTime || a.regTimeGmt || 0);
         const dateB = new Date(b.regTime || b.regTimeGmt || 0);
         return dateA.getTime() - dateB.getTime();
@@ -117,14 +137,10 @@ export default function PostComments({ params }: { params: Promise<{ postId: str
   // 주인장(ranto28)이 참여한 댓글 스레드만 필터링
   const ownerId = 'ranto28';
   const ownerRelatedComments = structuredComments.filter((parent) => {
-    // 1. 원댓글이 주인장 댓글인 경우
     const isOwnerParent = parent.profileUserId === ownerId || parent.userName === ownerId;
-    
-    // 2. 대댓글 중에 주인장 댓글이 있는 경우
-    const hasOwnerReply = parent.replies && parent.replies.some((reply: any) => 
+    const hasOwnerReply = parent.replies?.some((reply) => 
       reply.profileUserId === ownerId || reply.userName === ownerId
     );
-    
     return isOwnerParent || hasOwnerReply;
   });
 
@@ -238,14 +254,10 @@ export default function PostComments({ params }: { params: Promise<{ postId: str
                             ? 'bg-amber-50 border-amber-200' 
                             : 'bg-white border-gray-200'
                         }`}>
-                          <img
-                            src={comment.userProfileImage || 'https://blogimgs.pstatic.net/nblog/comment/login_basic.gif'}
-                            alt="프로필"
-                            className={`w-7 h-7 sm:w-12 sm:h-12 rounded-full object-cover border-2 ${
-                              comment.profileUserId === ownerId || comment.userName === ownerId
-                                ? 'border-amber-300' 
-                                : 'border-gray-100'
-                            }`}
+                          <ProfileImage
+                            imageUrl={comment.userProfileImage}
+                            isOwner={comment.profileUserId === ownerId || comment.userName === ownerId}
+                            size="large"
                           />
                           <div className="flex-1 min-w-0">
                             <div className="flex flex-wrap items-center gap-1 sm:gap-2 mb-0.5 sm:mb-2">
@@ -288,14 +300,10 @@ export default function PostComments({ params }: { params: Promise<{ postId: str
                                   : 'bg-blue-50 border-l-blue-200'
                               }`}>
                                 <span className="text-gray-400 font-bold text-sm sm:text-lg mt-0.5 sm:mt-1">ㄴ</span>
-                                <img
-                                  src={reply.userProfileImage || 'https://blogimgs.pstatic.net/nblog/comment/login_basic.gif'}
-                                  alt="프로필"
-                                  className={`w-5 h-5 sm:w-8 sm:h-8 rounded-full object-cover border ${
-                                    reply.profileUserId === ownerId || reply.userName === ownerId
-                                      ? 'border-amber-300'
-                                      : 'border-gray-200'
-                                  }`}
+                                <ProfileImage
+                                  imageUrl={reply.userProfileImage}
+                                  isOwner={reply.profileUserId === ownerId || reply.userName === ownerId}
+                                  size="small"
                                 />
                                 <div className="flex-1 min-w-0">
                                   <div className="flex flex-wrap items-center gap-1 sm:gap-2 mb-0.5 sm:mb-1">

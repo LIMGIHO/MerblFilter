@@ -1,0 +1,60 @@
+'use client';
+
+import Link from 'next/link';
+import { useEffect, useRef, useState } from 'react';
+
+interface Post {
+  author: string;
+  image: string;
+  title: string;
+  link: string;
+  postId: string;
+  pubDate: string;
+  tag?: string;
+  category?: string;
+}
+
+interface PostListProps {
+  initialPosts: Post[];
+}
+
+export default function PostList({ initialPosts }: PostListProps) {
+  const [posts, setPosts] = useState<Post[]>(initialPosts);
+  const listRef = useRef<HTMLUListElement>(null);
+
+  useEffect(() => {
+    setPosts(initialPosts);
+  }, [initialPosts]);
+
+  return (
+    <ul className="space-y-4" ref={listRef}>
+      {posts.map((post) => (
+        <li
+          key={post.postId}
+          id={`post-${post.postId}`}
+          className="p-4 border rounded-lg shadow-sm hover:shadow-md transition-shadow"
+        >
+          <Link
+            href={`/posts/${post.postId}`}
+            className="block"
+          >
+            <div className="flex items-center gap-4">
+              <div className="flex-1">
+                <h2 className="text-lg font-semibold mb-2">{post.title}</h2>
+                <div className="flex items-center gap-2 text-sm text-gray-600">
+                  <span>{new Date(post.pubDate).toLocaleDateString('ko-KR', {
+                    year: 'numeric',
+                    month: 'numeric',
+                    day: 'numeric',
+                    timeZone: 'Asia/Seoul'
+                  })}</span>
+                  {post.category && <span>• {post.category}</span>}
+                </div>
+              </div>
+            </div>
+          </Link>
+        </li>
+      ))}
+    </ul>
+  );
+} 
