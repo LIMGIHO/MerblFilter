@@ -1,7 +1,7 @@
 import { XMLParser } from 'fast-xml-parser';
 import PostList from './PostList';
-import SessionManager from './SessionManager';
 import './posts.css';
+import SessionManager from './SessionManager';
 
 async function fetchPosts() {
   const res = await fetch('https://rss.blog.naver.com/ranto28.xml', { cache: 'no-store' });

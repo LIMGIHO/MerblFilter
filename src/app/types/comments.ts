@@ -1,8 +1,8 @@
 export interface Comment {
   commentNo: number;
   parentCommentNo?: number;
-  replyLevel: 1 | 2;
-  userName: string;
+  replyLevel: number;
+  userName?: string;
   maskedUserName?: string;
   profileUserId?: string;
   userProfileImage?: string;
