@@ -111,7 +111,7 @@ export default function PostComments({ params }: { params: Promise<{ postId: str
   }, [comments]);
 
   // 네이버 스타일 날짜 포맷
-  function formatDate(dateStr: string) {
+  function formatDate(dateStr: string | undefined) {
     if (!dateStr) return '';
     const d = new Date(dateStr);
     return `${d.getFullYear()}.${(d.getMonth() + 1).toString().padStart(2, '0')}.${d.getDate().toString().padStart(2, '0')} ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;

@@ -5,19 +5,18 @@ import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
 const compat = new FlatCompat({
   baseDirectory: __dirname,
-  recommendedConfig: js.configs.recommended,
 });
 
 export default [
+  js.configs.recommended,
   ...compat.extends('next/core-web-vitals'),
   {
+    ignores: ['build/*', '.next/*', 'node_modules/*'],
     rules: {
-      '@typescript-eslint/no-explicit-any': 'off',
+      'no-unused-vars': 'warn',
       '@next/next/no-img-element': 'off',
-      'react-hooks/exhaustive-deps': 'warn',
     },
   },
 ];
