@@ -72,7 +72,7 @@ export default function PostComments({ postId }: { postId: string }) {
     try {
       const res = await fetch(`/api/comments?postId=${postId}`);
       const data = await res.json();
-      console.log('댓글 데이터:', data);
+    //   console.log('댓글 데이터:', data);
       if (data.result?.commentList) {
         setComments(data.result.commentList);
         setLastRefreshTime(new Date());
@@ -98,7 +98,7 @@ export default function PostComments({ postId }: { postId: string }) {
   }, [postId]);
 
   useEffect(() => {
-    console.log("===12.", comments);
+    // console.log("===12.", comments);
   }, [comments]);
 
   // 네이버 스타일 날짜 포맷
