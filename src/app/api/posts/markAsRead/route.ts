@@ -1,10 +1,14 @@
 import { getServerSession } from 'next-auth';
 import { NextResponse } from 'next/server';
-import { authOptions } from '../../auth/[...nextauth]/route';
+import { Session } from 'next-auth';
+
+interface ExtendedSession extends Session {
+  accessToken?: string;
+}
 
 export async function POST(request: Request) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = (await getServerSession()) as ExtendedSession;
     
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

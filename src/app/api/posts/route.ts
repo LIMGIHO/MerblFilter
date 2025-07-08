@@ -1,13 +1,17 @@
 import { XMLParser } from 'fast-xml-parser';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '../auth/[...nextauth]/route';
+import { Session } from 'next-auth';
 import { NextResponse } from 'next/server';
+
+interface ExtendedSession extends Session {
+  accessToken?: string;
+}
 
 // JSESSIONID를 저장할 변수
 let lastJsessionId: string | null = null;
 
 export async function GET() {
-  const session = await getServerSession(authOptions);
+  const session = (await getServerSession()) as ExtendedSession;
   console.log('Session in API:', session);
   
   // RSS 피드 가져오기
