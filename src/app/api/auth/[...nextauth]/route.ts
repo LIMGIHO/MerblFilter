@@ -11,7 +11,7 @@ interface ExtendedSession extends Session {
   accessToken?: string;
 }
 
-const handler = NextAuth({
+export const authOptions = {
   providers: [
     NaverProvider({
       clientId: process.env.NAVER_CLIENT_ID || '',
@@ -19,7 +19,7 @@ const handler = NextAuth({
     }),
   ],
   callbacks: {
-    async jwt({ token, account }: { token: ExtendedToken; account: any }) {
+    async jwt({ token, account, trigger, session }: { token: ExtendedToken; account: any; trigger?: string; session?: any }) {
       if (account) {
         token.accessToken = account.access_token;
       }
@@ -30,6 +30,9 @@ const handler = NextAuth({
       return session;
     },
   },
-});
+  debug: false,
+};
+
+const handler = NextAuth(authOptions);
 
 export { handler as GET, handler as POST };

@@ -2,6 +2,7 @@ import { XMLParser } from 'fast-xml-parser';
 import PostList from './PostList';
 import './posts.css';
 import SessionManager from './SessionManager';
+import NaverLoginButton from './NaverLoginButton';
 
 async function fetchPosts() {
   const res = await fetch('https://rss.blog.naver.com/ranto28.xml', { cache: 'no-store' });
@@ -30,7 +31,10 @@ export default async function PostsPage() {
   return (
     <main className="p-6 space-y-4">
       <SessionManager />
-      <h1 className="text-xl font-bold">Posts</h1>
+      <div className="flex justify-between items-center">
+        <h1 className="text-xl font-bold">Posts</h1>
+        <NaverLoginButton />
+      </div>
       <PostList initialPosts={posts} />
     </main>
   );
