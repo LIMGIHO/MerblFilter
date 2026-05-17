@@ -53,6 +53,7 @@ export default function AISidePanel({ isOpen, onClose, selectedPost, width, onWi
   const [oneLiner, setOneLiner] = useState<string>('');
   const [isFetchingOneLiner, setIsFetchingOneLiner] = useState(false);
   const [gpuLabel, setGpuLabel] = useState<string | null>(null);
+  const [showGpuInfo, setShowGpuInfo] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const answerRef = useRef('');
@@ -89,13 +90,23 @@ export default function AISidePanel({ isOpen, onClose, selectedPost, width, onWi
     }
   }, []);
 
-  // ESC 키로 패널 닫기
+  // ESC 키로 패널 닫기 / GPU 팝업 닫기
   useEffect(() => {
     if (!isOpen) return;
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { setShowGpuInfo(false); onClose(); }
+    };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
   }, [isOpen, onClose]);
+
+  // GPU 팝업 외부 클릭 시 닫기
+  useEffect(() => {
+    if (!showGpuInfo) return;
+    const handler = () => setShowGpuInfo(false);
+    document.addEventListener('click', handler);
+    return () => document.removeEventListener('click', handler);
+  }, [showGpuInfo]);
 
   // 드래그 중 글로벌 mouse 이벤트
   useEffect(() => {
@@ -293,12 +304,34 @@ ${finalPrompt}`;
                   <span className={`transition-transform ${showModelSelect ? 'rotate-180' : ''}`}>▾</span>
                 </button>
                 {gpuLabel && (
-                  <span
-                    className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-default"
-                    title="서버 없이 내 기기에서 직접 실행됩니다. 대화 내용은 외부로 전송되지 않아요."
-                  >
-                    {gpuLabel}
-                  </span>
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowGpuInfo(v => !v)}
+                      className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition cursor-pointer"
+                    >
+                      {gpuLabel}
+                    </button>
+                    {showGpuInfo && (
+                      <div className="absolute top-full left-0 mt-1.5 z-50 w-56 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-lg p-3 text-left">
+                        <div className="text-[11px] font-semibold text-slate-700 dark:text-slate-200 mb-2">
+                          {gpuLabel}
+                        </div>
+                        <ul className="space-y-1">
+                          {[
+                            '대화 내용 서버 전송 없음',
+                            '프롬프트 저장 없음',
+                            '인터넷 연결 불필요 (로드 후)',
+                            '100% 브라우저 내 처리',
+                          ].map(item => (
+                            <li key={item} className="flex items-start gap-1.5 text-[11px] text-slate-600 dark:text-slate-300">
+                              <span className="text-teal-500 mt-px flex-shrink-0">✓</span>
+                              <span>{item}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
               {selectedPost && (
