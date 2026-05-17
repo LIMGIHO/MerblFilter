@@ -29,6 +29,15 @@ function stripHtml(html: string): string {
 }
 
 /**
+ * 본문 텍스트에서 "한줄 코멘트" 이후 텍스트를 추출
+ * 예: "한줄 코멘트.. 금리는 내려도 집값은 안 내린다" → "금리는 내려도 집값은 안 내린다"
+ */
+function extractOneLiner(text: string): string {
+  const match = text.match(/한\s*줄\s*코멘트\s*[.．·:：\s]*(.+?)(\n|$)/i);
+  return match ? match[1].trim() : '';
+}
+
+/**
  * div depth tracking으로 본문 컨테이너의 진짜 끝을 찾아냄
  * (Naver 모바일 페이지는 `post_btn_area` 같은 마커가 없어서 regex로는 한계)
  */
@@ -96,8 +105,9 @@ export async function GET(req: NextRequest) {
 
     const html = await res.text();
     const content = extractBody(html);
+    const oneLiner = extractOneLiner(content);
 
-    return NextResponse.json({ content, length: content.length });
+    return NextResponse.json({ content, oneLiner, length: content.length });
   } catch (e) {
     return NextResponse.json({ content: '', error: String(e) }, { status: 200 });
   }
