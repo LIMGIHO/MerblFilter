@@ -23,9 +23,14 @@ export default function BuildSeal() {
   const [visits, setVisits] = useState<VisitCount | null>(null);
 
   useEffect(() => {
-    // 같은 세션에서 재방문 시 카운팅 안 함
-    if (sessionStorage.getItem('merbl_visited')) {
-      // 이미 이 세션에서 카운팅됨 — 조용히 현재값만 가져오지 않음 (API 미호출)
+    // 같은 세션에서 재방문 시 카운팅 안 함 — 단, 캐시된 값은 표시
+    const cached = sessionStorage.getItem('merbl_visit_data');
+    if (cached) {
+      try {
+        setVisits(JSON.parse(cached));
+      } catch {
+        // 파싱 실패 시 무시
+      }
       return;
     }
 
@@ -33,7 +38,7 @@ export default function BuildSeal() {
       .then(r => r.json())
       .then((data: VisitCount) => {
         setVisits(data);
-        sessionStorage.setItem('merbl_visited', '1');
+        sessionStorage.setItem('merbl_visit_data', JSON.stringify(data));
       })
       .catch(() => {
         // 실패 시 카운터 미표시
