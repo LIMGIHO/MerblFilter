@@ -14,6 +14,18 @@ interface Message {
   isError?: boolean;
 }
 
+function stripHtmlTags(html: string): string {
+  return html
+    .replace(/<br\s*\/?>/gi, ' ')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
 /** 스트리밍 텍스트에서 <think>...</think> 와 본문을 분리 */
 function splitThinking(raw: string): { thinking: string; answer: string } {
   const closed = raw.match(/<think>([\s\S]*?)<\/think>([\s\S]*)/);
@@ -43,12 +55,29 @@ interface AISidePanelProps {
   maxWidth: number;
 }
 
-const QUICK_PROMPTS = ['3줄 요약', '한줄 코멘트', '스팸 댓글 찾기', '댓글 반응 분석', '부정적 댓글'];
+type ContextMode = 'auto' | 'post' | 'comments' | 'all';
+
+function detectContext(prompt: string): 'post' | 'comments' | 'all' {
+  const postKeywords = /요약|정리|핵심|분석|내용|설명|포인트|의미|배경|원인/;
+  const commentKeywords = /댓글|반응|사람들|독자|스팸|부정|긍정|여론/;
+  const hasPost = postKeywords.test(prompt);
+  const hasComment = commentKeywords.test(prompt);
+  if (hasPost && !hasComment) return 'post';
+  if (hasComment && !hasPost) return 'comments';
+  return 'all';
+}
+
+const QUICK_PROMPTS_BY_CONTEXT: Record<'post' | 'comments' | 'all', string[]> = {
+  post:     ['3줄 요약', '핵심 포인트', '한줄 코멘트'],
+  comments: ['댓글 반응 분석', '스팸 찾기', '부정적 댓글'],
+  all:      ['종합 요약', '댓글 반응', '스팸 찾기'],
+};
 
 export default function AISidePanel({ isOpen, onClose, selectedPost, width, onWidthChange, minWidth, maxWidth }: AISidePanelProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [contextMode, setContextMode] = useState<ContextMode>('auto');
   const [isFetching, setIsFetching] = useState(false);
   const [oneLiner, setOneLiner] = useState<string>('');
   const [isFetchingOneLiner, setIsFetchingOneLiner] = useState(false);
@@ -193,9 +222,8 @@ export default function AISidePanel({ isOpen, onClose, selectedPost, width, onWi
       commentsText = list
         .filter((c: { replyLevel: number }) => c.replyLevel === 1)
         .map((c: { userName?: string; contents: string }) => {
-          const trimmed = c.contents.length > 150
-            ? c.contents.slice(0, 150) + '…'
-            : c.contents;
+          const rawContent = stripHtmlTags(c.contents);
+          const trimmed = rawContent.length > 150 ? rawContent.slice(0, 150) + '…' : rawContent;
           return `- ${c.userName ?? '익명'}: ${trimmed}`;
         })
         .join('\n');
@@ -216,7 +244,28 @@ export default function AISidePanel({ isOpen, onClose, selectedPost, width, onWi
 
     setIsGenerating(true);
     try {
-      const systemPrompt = `당신은 아래 제공된 [본문]과 [댓글]만을 근거로 답하는 블로그 분석 어시스턴트입니다.
+      const resolved = contextMode === 'auto' ? detectContext(finalPrompt) : contextMode;
+
+      let systemPrompt: string;
+      if (resolved === 'post') {
+        systemPrompt = `당신은 아래 제공된 [본문]만을 근거로 답하는 블로그 분석 어시스턴트입니다.
+
+절대 규칙:
+- [본문]에 있는 내용만 사용하세요. 일반 상식이나 외부 지식으로 답하지 마세요.
+- 본문에 없는 내용을 묻는 경우 "이 게시글에서는 해당 내용을 다루지 않습니다."라고 답하세요.
+- 마크다운(**굵게**, - 목록, 1. 번호) 적극 활용해 가독성 확보.
+- 한국어로 자연스럽게, "~입니다", "~합니다" 어미 일관 사용.
+- 요약을 요청받으면 응답 마지막에 반드시 **[메르의 한줄 코멘트]** 섹션을 추가하고, [한줄 코멘트]에 제공된 원문을 그대로 인용하세요.`;
+      } else if (resolved === 'comments') {
+        systemPrompt = `당신은 아래 제공된 [댓글]만을 분석하는 어시스턴트입니다.
+
+절대 규칙:
+- [댓글]에 있는 내용만 사용하세요. 추론하거나 외부 지식을 사용하지 마세요.
+- 댓글에 없는 내용을 묻는 경우 "댓글에서는 해당 내용을 찾을 수 없습니다."라고 답하세요.
+- 마크다운(**굵게**, - 목록, 1. 번호) 적극 활용해 가독성 확보.
+- 한국어로 자연스럽게, "~입니다", "~합니다" 어미 일관 사용.`;
+      } else {
+        systemPrompt = `당신은 아래 제공된 [본문]과 [댓글]만을 근거로 답하는 블로그 분석 어시스턴트입니다.
 
 절대 규칙:
 - 반드시 [본문] 또는 [댓글]에 있는 내용만 사용하세요. 일반 상식이나 외부 지식으로 답하지 마세요.
@@ -226,21 +275,16 @@ export default function AISidePanel({ isOpen, onClose, selectedPost, width, onWi
 - 한국어로 자연스럽게, 단정한 톤으로 답하세요. "~입니다", "~합니다" 어미 일관 사용.
 - 본문이 있을 때는 댓글보다 본문을 우선으로 참고하세요.
 - 요약을 요청받으면 응답 마지막에 반드시 **[메르의 한줄 코멘트]** 섹션을 추가하고, [한줄 코멘트]에 제공된 원문을 그대로 인용하세요.`;
+      }
 
-      const userPrompt = `[게시글 제목]
-${selectedPost.title}
-
-[본문]
-${postBody || '(본문을 가져오지 못했습니다 — 제목과 댓글만 참고하세요)'}
-
-[한줄 코멘트]
-${oneLiner || '(없음)'}
-
-[댓글 ${commentsText ? commentsText.split('\n').length : 0}개]
-${commentsText || '(댓글 없음)'}
-
-[요청]
-${finalPrompt}`;
+      let userPrompt: string;
+      if (resolved === 'post') {
+        userPrompt = `[게시글 제목]\n${selectedPost.title}\n\n[본문]\n${postBody || '(본문을 가져오지 못했습니다)'}\n\n[한줄 코멘트]\n${oneLiner || '(없음)'}\n\n[요청]\n${finalPrompt}`;
+      } else if (resolved === 'comments') {
+        userPrompt = `[게시글 제목]\n${selectedPost.title}\n\n[댓글 ${commentsText ? commentsText.split('\n').length : 0}개]\n${commentsText || '(댓글 없음)'}\n\n[요청]\n${finalPrompt}`;
+      } else {
+        userPrompt = `[게시글 제목]\n${selectedPost.title}\n\n[본문]\n${postBody || '(본문을 가져오지 못했습니다 — 제목과 댓글만 참고하세요)'}\n\n[한줄 코멘트]\n${oneLiner || '(없음)'}\n\n[댓글 ${commentsText ? commentsText.split('\n').length : 0}개]\n${commentsText || '(댓글 없음)'}\n\n[요청]\n${finalPrompt}`;
+      }
 
       await generate(systemPrompt, userPrompt, (chunk) => {
         answerRef.current += chunk;
@@ -260,7 +304,7 @@ ${finalPrompt}`;
     } finally {
       setIsGenerating(false);
     }
-  }, [selectedPost, input, isGenerating, generate, oneLiner]);
+  }, [selectedPost, input, isGenerating, generate, oneLiner, contextMode]);
 
   if (!isOpen) return null;
 
@@ -542,19 +586,51 @@ ${finalPrompt}`;
         <div className="border-t border-slate-100 dark:border-slate-800 p-3 space-y-2 flex-shrink-0">
           {isModelLoaded ? (
             <>
-              {/* 퀵 프롬프트 */}
-              <div className="flex flex-wrap gap-1.5">
-                {QUICK_PROMPTS.map(q => (
-                  <button
-                    key={q}
-                    onClick={() => handleSubmit(q)}
-                    disabled={isGenerating || isFetching || !selectedPost}
-                    className="text-xs px-2.5 py-1 rounded-full border border-teal-200 dark:border-teal-700 text-teal-600 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-900/30 transition disabled:opacity-40"
-                  >
-                    {q}
-                  </button>
-                ))}
+              {/* 컨텍스트 토글 */}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[10px] text-slate-400 dark:text-slate-500">컨텍스트:</span>
+                {(['post', 'comments', 'all'] as const).map((mode) => {
+                  const labels: Record<typeof mode, string> = { post: '📄 본문', comments: '💬 댓글', all: '전체' };
+                  const isActive = contextMode === mode;
+                  return (
+                    <button
+                      key={mode}
+                      onClick={() => setContextMode(prev => prev === mode ? 'auto' : mode)}
+                      className={`text-[10px] px-2 py-0.5 rounded-full transition
+                        ${isActive
+                          ? 'bg-teal-500 text-white'
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                        }`}
+                    >
+                      {labels[mode]}
+                    </button>
+                  );
+                })}
+                {contextMode === 'auto' && (
+                  <span className="text-[9px] text-teal-500 dark:text-teal-400">← 자동감지</span>
+                )}
               </div>
+
+              {/* 퀵 프롬프트 */}
+              {(() => {
+                const displayedQuickPrompts = contextMode === 'auto'
+                  ? QUICK_PROMPTS_BY_CONTEXT.all
+                  : QUICK_PROMPTS_BY_CONTEXT[contextMode];
+                return (
+                  <div className="flex flex-wrap gap-1.5">
+                    {displayedQuickPrompts.map(q => (
+                      <button
+                        key={q}
+                        onClick={() => handleSubmit(q)}
+                        disabled={isGenerating || isFetching || !selectedPost}
+                        className="text-xs px-2.5 py-1 rounded-full border border-teal-200 dark:border-teal-700 text-teal-600 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-900/30 transition disabled:opacity-40"
+                      >
+                        {q}
+                      </button>
+                    ))}
+                  </div>
+                );
+              })()}
 
               {/* 텍스트 입력 */}
               <div className="flex gap-2">
