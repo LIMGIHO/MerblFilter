@@ -58,6 +58,7 @@ function ProfileImage({ imageUrl, isOwner, name, size = 'large' }: { imageUrl?: 
     <img
       src={imageUrl}
       alt="프로필"
+      referrerPolicy="no-referrer"
       className={`${sizeClass} rounded-full object-cover border-2 ${borderClass} flex-shrink-0`}
       onError={() => setFailed(true)}
     />

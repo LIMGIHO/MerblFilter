@@ -26,6 +26,7 @@ function ProfileImage({ imageUrl, isOwner, size = 'large' }: { imageUrl?: string
     <img
       src={failed ? defaultImage : (imageUrl || defaultImage)}
       alt="프로필"
+      referrerPolicy="no-referrer"
       className={`${classes} ${isOwner ? 'border-amber-300' : 'border-gray-200'}`}
       onError={() => setFailed(true)}
     />
@@ -89,7 +90,9 @@ export default function PostComments({ postId, blogId = 'ranto28' }: { postId: s
   const ownerRelatedComments = structuredComments.filter((c) =>
     isOwnerComment(c) || c.replies.some(isOwnerComment)
   );
-  const commentsToShow = (showAllComments ? structuredComments : ownerRelatedComments)
+  // AI 레이블 필터가 활성화된 경우 전체 댓글 기준으로 필터링 (메르님 뷰에서도 전체 분류 결과 반영)
+  const baseComments = (hiddenLabels.size > 0) ? structuredComments : (showAllComments ? structuredComments : ownerRelatedComments);
+  const commentsToShow = baseComments
     .filter((c) => {
       if (hiddenLabels.size === 0) return true;
       const label = llmLabelMap[c.commentNo];
@@ -176,7 +179,7 @@ export default function PostComments({ postId, blogId = 'ranto28' }: { postId: s
                 <ul className="h-full space-y-2 sm:space-y-6 overflow-y-auto w-full px-0.5 sm:px-2">
                   {commentsToShow.length === 0 ? (
                     <li className="text-xs text-gray-400">
-                      {showAllComments ? '아직 댓글이 없습니다.' : '메르님이 참여한 댓글이 없습니다.'}
+                      {hiddenLabels.size > 0 ? '해당 레이블의 댓글이 없습니다.' : showAllComments ? '아직 댓글이 없습니다.' : '메르님이 참여한 댓글이 없습니다.'}
                     </li>
                   ) : (
                     commentsToShow.map((comment, idx) => (

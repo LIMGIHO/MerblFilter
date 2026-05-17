@@ -57,17 +57,8 @@ interface AISidePanelProps {
   maxWidth: number;
 }
 
-type ContextMode = 'auto' | 'post' | 'comments' | 'all';
+type ContextMode = 'post' | 'comments' | 'all';
 
-function detectContext(prompt: string): 'post' | 'comments' | 'all' {
-  const postKeywords = /요약|정리|핵심|분석|내용|설명|포인트|의미|배경|원인/;
-  const commentKeywords = /댓글|반응|사람들|독자|스팸|부정|긍정|여론/;
-  const hasPost = postKeywords.test(prompt);
-  const hasComment = commentKeywords.test(prompt);
-  if (hasPost && !hasComment) return 'post';
-  if (hasComment && !hasPost) return 'comments';
-  return 'all'; // default: no keyword match or mixed keywords → use full context
-}
 
 const QUICK_PROMPTS_BY_CONTEXT: Record<'post' | 'comments' | 'all', string[]> = {
   post:     ['3줄 요약', '핵심 포인트', '한줄 코멘트'],
@@ -80,7 +71,7 @@ export default function AISidePanel({ isOpen, onClose, selectedPost, width, onWi
   const [input, setInput] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatingStage, setGeneratingStage] = useState<'analyzing' | 'answering' | null>(null);
-  const [contextMode, setContextMode] = useState<ContextMode>('auto');
+  const [contextMode, setContextMode] = useState<ContextMode>('all');
   const [isFetching, setIsFetching] = useState(false);
   const [oneLiner, setOneLiner] = useState<string>('');
   const [isFetchingOneLiner, setIsFetchingOneLiner] = useState(false);
@@ -213,7 +204,7 @@ export default function AISidePanel({ isOpen, onClose, selectedPost, width, onWi
     let postBody = '';
     let commentsText = '';
     let commentCount = 0;
-    const resolved = contextMode === 'auto' ? detectContext(finalPrompt) : contextMode;
+    const resolved = contextMode;
     try {
       const needsPost = resolved === 'post' || resolved === 'all';
       const needsComments = resolved === 'comments' || resolved === 'all';
@@ -281,16 +272,17 @@ export default function AISidePanel({ isOpen, onClose, selectedPost, width, onWi
 - 마크다운(**굵게**, - 목록, 1. 번호) 적극 활용해 가독성 확보.
 - 한국어로 자연스럽게, "~입니다", "~합니다" 어미 일관 사용.`;
       } else {
-        systemPrompt = `당신은 아래 제공된 [본문]과 [댓글]만을 근거로 답하는 블로그 분석 어시스턴트입니다.
+        systemPrompt = `당신은 아래 제공된 [본문]과 [댓글]을 근거로 답하는 블로그 분석 어시스턴트입니다.
 
 절대 규칙:
 - 반드시 [본문] 또는 [댓글]에 있는 내용만 사용하세요. 일반 상식이나 외부 지식으로 답하지 마세요.
-- 답변의 모든 주장은 [본문]의 특정 내용을 직접 근거로 삼아야 합니다.
-- 본문에 없는 내용을 묻는 경우 "이 게시글에서는 해당 내용을 다루지 않습니다."라고 답하세요.
+- 답변은 반드시 아래 두 섹션으로 구성하세요:
+  **📄 본문 기반** — [본문]에서 찾은 내용만 작성하세요.
+  **💬 댓글 반응** — [댓글]에서 찾은 내용만 작성하세요. 관련 댓글이 없으면 "관련 댓글 없음"으로 한 줄 표기.
+- 각 섹션은 해당 소스([본문] 또는 [댓글])에만 근거하세요. 섹션 간 내용 혼용 금지.
 - 마크다운(**굵게**, - 목록, 1. 번호) 적극 활용해 가독성 확보.
-- 한국어로 자연스럽게, 단정한 톤으로 답하세요. "~입니다", "~합니다" 어미 일관 사용.
-- 본문이 있을 때는 댓글보다 본문을 우선으로 참고하세요.
-- 요약을 요청받으면 응답 마지막에 반드시 **[메르의 한줄 코멘트]** 섹션을 추가하고, [한줄 코멘트]에 제공된 원문을 그대로 인용하세요.`;
+- 한국어로 자연스럽게, "~입니다", "~합니다" 어미 일관 사용.
+- 요약 요청 시 [📄 본문 기반] 섹션 마지막에 반드시 **[메르의 한줄 코멘트]** 섹션을 추가하고, [한줄 코멘트] 원문을 그대로 인용하세요.`;
       }
 
       let userPrompt: string;
@@ -299,7 +291,7 @@ export default function AISidePanel({ isOpen, onClose, selectedPost, width, onWi
       } else if (resolved === 'comments') {
         userPrompt = `[게시글 제목]\n${selectedPost.title}\n\n[댓글 ${commentCount}개]\n${commentsText || '(댓글 없음)'}\n\n[요청]\n${finalPrompt}`;
       } else {
-        userPrompt = `[게시글 제목]\n${selectedPost.title}\n\n[본문]\n${postBody || '(본문을 가져오지 못했습니다 — 제목과 댓글만 참고하세요)'}\n\n[한줄 코멘트]\n${oneLiner || '(없음)'}\n\n[댓글 ${commentCount}개]\n${commentsText || '(댓글 없음)'}\n\n[요청]\n${finalPrompt}`;
+        userPrompt = `[게시글 제목]\n${selectedPost.title}\n\n[본문]\n${postBody || '(본문을 가져오지 못했습니다 — 제목과 댓글만 참고하세요)'}\n\n[한줄 코멘트]\n${oneLiner || '(없음)'}\n\n[댓글 ${commentCount}개]\n${commentsText || '(댓글 없음)'}\n\n[요청]\n${finalPrompt}\n\n답변은 반드시 "📄 본문 기반"과 "💬 댓글 반응" 두 섹션으로 나눠 작성하세요.`;
       }
 
       // 2-stage only for post context
@@ -322,7 +314,7 @@ export default function AISidePanel({ isOpen, onClose, selectedPost, width, onWi
           if (resolved === 'post') {
             finalUserPrompt = `[게시글 제목]\n${selectedPost.title}\n\n[본문 (관련 구절)]\n${extracted}\n\n[한줄 코멘트]\n${oneLiner || '(없음)'}\n\n[요청]\n${finalPrompt}`;
           } else {
-            finalUserPrompt = `[게시글 제목]\n${selectedPost.title}\n\n[본문 (관련 구절)]\n${extracted}\n\n[한줄 코멘트]\n${oneLiner || '(없음)'}\n\n[댓글 ${commentCount}개]\n${commentsText || '(댓글 없음)'}\n\n[요청]\n${finalPrompt}`;
+            finalUserPrompt = `[게시글 제목]\n${selectedPost.title}\n\n[본문 (관련 구절)]\n${extracted}\n\n[한줄 코멘트]\n${oneLiner || '(없음)'}\n\n[댓글 ${commentCount}개]\n${commentsText || '(댓글 없음)'}\n\n[요청]\n${finalPrompt}\n\n답변은 반드시 "📄 본문 기반"과 "💬 댓글 반응" 두 섹션으로 나눠 작성하세요.`;
           }
         }
         setGeneratingStage('answering');
@@ -352,9 +344,7 @@ export default function AISidePanel({ isOpen, onClose, selectedPost, width, onWi
     }
   }, [selectedPost, input, isGenerating, generate, oneLiner, contextMode]);
 
-  const displayedQuickPrompts = contextMode === 'auto'
-    ? QUICK_PROMPTS_BY_CONTEXT.all
-    : QUICK_PROMPTS_BY_CONTEXT[contextMode as 'post' | 'comments' | 'all'];
+  const displayedQuickPrompts = QUICK_PROMPTS_BY_CONTEXT[contextMode];
 
   if (!isOpen) return null;
 
@@ -644,7 +634,7 @@ export default function AISidePanel({ isOpen, onClose, selectedPost, width, onWi
                   return (
                     <button
                       key={mode}
-                      onClick={() => setContextMode(prev => prev === mode ? 'auto' : mode)}
+                      onClick={() => setContextMode(prev => (prev === mode && mode !== 'all') ? 'all' : mode)}
                       className={`text-[10px] px-2 py-0.5 rounded-full transition
                         ${isActive
                           ? 'bg-teal-500 text-white'
@@ -655,9 +645,6 @@ export default function AISidePanel({ isOpen, onClose, selectedPost, width, onWi
                     </button>
                   );
                 })}
-                {contextMode === 'auto' && (
-                  <span className="text-[9px] text-teal-500 dark:text-teal-400">← 자동감지</span>
-                )}
               </div>
 
               {/* 퀵 프롬프트 */}

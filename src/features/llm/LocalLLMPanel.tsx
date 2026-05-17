@@ -186,10 +186,6 @@ export default function LocalLLMPanel({ comments, onLabelsUpdate, labelMap, onHi
             </div>
           )}
 
-          {/* Phase 2 예고 */}
-          <div className="text-xs text-gray-400 dark:text-gray-600 border-t border-gray-100 dark:border-gray-800 pt-2">
-            💡 Phase 2 (Qwen 1.5B 요약) — 설정에서 고급 LLM 활성화
-          </div>
         </div>
       )}
     </div>

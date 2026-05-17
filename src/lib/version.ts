@@ -8,6 +8,6 @@
  *   PATCH: 버그 수정, 작은 개선
  */
 
-export const APP_VERSION = '1.2.0';
+export const APP_VERSION = '1.4.0';
 export const APP_AUTHOR = 'Giho';
 export const APP_BUILD_DATE = '2026-05-18';
