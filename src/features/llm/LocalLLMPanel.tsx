@@ -19,9 +19,10 @@ interface LocalLLMPanelProps {
   comments: BlogComment[];
   onLabelsUpdate: (labels: Record<number, LlmLabel>) => void;
   labelMap: Record<number, LlmLabel>;
+  onHideLabelsChange?: (hidden: Set<LlmLabel>) => void;
 }
 
-export default function LocalLLMPanel({ comments, onLabelsUpdate, labelMap }: LocalLLMPanelProps) {
+export default function LocalLLMPanel({ comments, onLabelsUpdate, labelMap, onHideLabelsChange }: LocalLLMPanelProps) {
   const {
     phase1Enabled,
     phase1Status,
@@ -171,7 +172,7 @@ export default function LocalLLMPanel({ comments, onLabelsUpdate, labelMap }: Lo
                         const next = new Set(hideLabels);
                         if (isHidden) next.delete(label); else next.add(label);
                         setHideLabels(next);
-                        // 부모에게 숨길 레이블 전달 (labelMap 재계산)
+                        onHideLabelsChange?.(next);
                       }}
                       className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full transition
                         ${LABEL_CONFIG[label].color}

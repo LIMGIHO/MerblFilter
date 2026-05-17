@@ -48,6 +48,7 @@ export default function PostComments({ postId, blogId = 'ranto28' }: { postId: s
   const [lastRefreshTime, setLastRefreshTime] = useState<Date | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [llmLabelMap, setLlmLabelMap] = useState<Record<number, LlmLabel>>({});
+  const [hiddenLabels, setHiddenLabels] = useState<Set<LlmLabel>>(new Set());
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768);
@@ -88,7 +89,12 @@ export default function PostComments({ postId, blogId = 'ranto28' }: { postId: s
   const ownerRelatedComments = structuredComments.filter((c) =>
     isOwnerComment(c) || c.replies.some(isOwnerComment)
   );
-  const commentsToShow = showAllComments ? structuredComments : ownerRelatedComments;
+  const commentsToShow = (showAllComments ? structuredComments : ownerRelatedComments)
+    .filter((c) => {
+      if (hiddenLabels.size === 0) return true;
+      const label = llmLabelMap[c.commentNo];
+      return !label || !hiddenLabels.has(label);
+    });
 
   return (
     <main className="p-1 sm:p-6 h-screen">
@@ -157,7 +163,7 @@ export default function PostComments({ postId, blogId = 'ranto28' }: { postId: s
 
           {showFiltered && (
             <div className="ml-auto">
-              <LocalLLMPanel comments={comments} onLabelsUpdate={setLlmLabelMap} labelMap={llmLabelMap} />
+              <LocalLLMPanel comments={comments} onLabelsUpdate={setLlmLabelMap} labelMap={llmLabelMap} onHideLabelsChange={setHiddenLabels} />
             </div>
           )}
         </div>
