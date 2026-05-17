@@ -2,26 +2,55 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 
 export type ModelStatus =
-  | 'idle'          // 미다운로드
-  | 'downloading'   // 다운로드 중
-  | 'ready'         // 사용 가능
-  | 'running'       // 추론 중
-  | 'error';        // 오류
+  | 'idle'
+  | 'downloading'
+  | 'ready'
+  | 'running'
+  | 'error';
+
+export interface ModelOption {
+  id: string;
+  label: string;
+  size: string;
+  description: string;
+}
+
+export const WEBLLM_MODELS: ModelOption[] = [
+  {
+    id: 'Qwen2.5-0.5B-Instruct-q4f16_1-MLC',
+    label: '경량',
+    size: '~300MB',
+    description: '빠름, 정확도 낮음',
+  },
+  {
+    id: 'Qwen2.5-1.5B-Instruct-q4f16_1-MLC',
+    label: '기본',
+    size: '~900MB',
+    description: '균형잡힌 성능',
+  },
+  {
+    id: 'Qwen2.5-3B-Instruct-q4f16_1-MLC',
+    label: '고성능',
+    size: '~2GB',
+    description: '높은 정확도, 느림',
+  },
+];
 
 export interface LlmStore {
-  // Phase 1 (Transformers.js)
+  // Phase 1 (Transformers.js — 댓글 분류)
   phase1Enabled: boolean;
   phase1Status: ModelStatus;
-  phase1Progress: number;       // 0~100
+  phase1Progress: number;
   phase1ModelId: string;
   phase1Error: string | null;
 
-  // Phase 2 (WebLLM) — opt-in
+  // Phase 2 (WebLLM — 요약/프롬프트)
   phase2Enabled: boolean;
   phase2Status: ModelStatus;
   phase2Progress: number;
   phase2ModelId: string;
   phase2Error: string | null;
+  phase2ProgressMessage: string;
 
   setPhase1Enabled: (v: boolean) => void;
   setPhase1Status: (s: ModelStatus) => void;
@@ -31,7 +60,9 @@ export interface LlmStore {
   setPhase2Enabled: (v: boolean) => void;
   setPhase2Status: (s: ModelStatus) => void;
   setPhase2Progress: (p: number) => void;
+  setPhase2ModelId: (id: string) => void;
   setPhase2Error: (e: string | null) => void;
+  setPhase2ProgressMessage: (m: string) => void;
 }
 
 export const useLlmStore = create<LlmStore>()(
@@ -48,6 +79,7 @@ export const useLlmStore = create<LlmStore>()(
       phase2Progress: 0,
       phase2ModelId: 'Qwen2.5-1.5B-Instruct-q4f16_1-MLC',
       phase2Error: null,
+      phase2ProgressMessage: '',
 
       setPhase1Enabled: (v) => set({ phase1Enabled: v }),
       setPhase1Status: (s) => set({ phase1Status: s }),
@@ -57,12 +89,13 @@ export const useLlmStore = create<LlmStore>()(
       setPhase2Enabled: (v) => set({ phase2Enabled: v }),
       setPhase2Status: (s) => set({ phase2Status: s }),
       setPhase2Progress: (p) => set({ phase2Progress: p }),
+      setPhase2ModelId: (id) => set({ phase2ModelId: id, phase2Status: 'idle' }),
       setPhase2Error: (e) => set({ phase2Error: e }),
+      setPhase2ProgressMessage: (m) => set({ phase2ProgressMessage: m }),
     }),
     {
       name: '@llm_settings',
       storage: createJSONStorage(() => localStorage),
-      // 런타임 상태는 persist 제외
       partialize: (s) => ({
         phase1Enabled: s.phase1Enabled,
         phase1ModelId: s.phase1ModelId,

@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@mlc-ai/web-llm':
+        specifier: ^0.2.83
+        version: 0.2.83
       '@tanstack/react-virtual':
         specifier: ^3.10.0
         version: 3.13.24(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -523,6 +526,9 @@ packages:
 
   '@jridgewell/trace-mapping@0.3.29':
     resolution: {integrity: sha512-uw6guiW/gcAGPDhLmd77/6lW8QLeiV5RUTsAX46Db6oLhGaVj4lhnPwb184s1bkc8kdVg/+h988dro8GRDpmYQ==}
+
+  '@mlc-ai/web-llm@0.2.83':
+    resolution: {integrity: sha512-Ynuses0TM9CcSIs9PfX5+xwGOVFssQTXQaAwKFggfEw++shBbEr8fOjI7yJlY96wv0dwVFE+C2KGcO287+FuHw==}
 
   '@napi-rs/wasm-runtime@0.2.11':
     resolution: {integrity: sha512-9DPkXtvHydrcOsopiYpUgPHpmj0HWZKMUnL2dZqpvC42lsratuBG06V5ipyno0fUek5VlFsNQ+AcFATSrJXgMA==}
@@ -2284,6 +2290,10 @@ packages:
   lodash.merge@4.6.2:
     resolution: {integrity: sha512-0KpjqXRVvrYyCsX1swR/XTK0va6VQkQM6MNo7PqW77ByjAhoARA8EfrP1N4+KlKj8YS0ZUCtRT/YUuhyYDujIQ==}
 
+  loglevel@1.9.2:
+    resolution: {integrity: sha512-HgMmCqIJSAKqo68l0rS2AanEWfkxaZ5wNiEFb5ggm08lDs9Xl2KxBlX3PTcaD2chBM1gXAYf491/M2Rv8Jwayg==}
+    engines: {node: '>= 0.6.0'}
+
   long@4.0.0:
     resolution: {integrity: sha512-XsP+KhQif4bjX1kbuSiySJFNAehNxgLb6hPRGJ9QsUr8ajHkuXGdrHmFUTUUXhDwVX2R5bY4JNZEwbUiMhV+MA==}
 
@@ -3812,6 +3822,10 @@ snapshots:
     dependencies:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.4
+
+  '@mlc-ai/web-llm@0.2.83':
+    dependencies:
+      loglevel: 1.9.2
 
   '@napi-rs/wasm-runtime@0.2.11':
     dependencies:
@@ -5724,6 +5738,8 @@ snapshots:
       p-locate: 5.0.0
 
   lodash.merge@4.6.2: {}
+
+  loglevel@1.9.2: {}
 
   long@4.0.0: {}
 

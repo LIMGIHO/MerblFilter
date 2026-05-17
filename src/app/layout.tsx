@@ -4,6 +4,10 @@ import './globals.css';
 export const metadata: Metadata = {
   title: 'merblFilter v2',
   description: '메르님 블로그 댓글 필터 — 웹 버전',
+  icons: {
+    icon: '/favicon.png',
+    apple: '/favicon.png',
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -21,6 +21,9 @@ export interface BlogComment {
   // 좋아요
   sympathyCount?: number;
 
+  // 비밀 댓글
+  isSecret?: boolean;
+
   // 내용 및 시간
   contents: string;
   regTime?: string;

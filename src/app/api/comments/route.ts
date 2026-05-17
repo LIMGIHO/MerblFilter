@@ -23,6 +23,8 @@ function normalizeComment(raw: Record<string, unknown>): BlogComment {
     writerProfileUserRoleCode: (raw.writerProfileUserRoleCode as string) || undefined,
     // 좋아요
     sympathyCount: raw.sympathyCount !== undefined ? Number(raw.sympathyCount) : 0,
+    // 비밀 댓글
+    isSecret: raw.secret === true || raw.isSecret === true || (raw.contents as string) === '',
     // 내용
     contents: (raw.contents as string) ?? '',
     regTime: (raw.regTime as string) || undefined,

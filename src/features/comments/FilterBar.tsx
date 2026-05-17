@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useFilterStore } from '@/store/filterStore';
+import ExportImportPreset from '@/features/settings/ExportImportPreset';
 
 interface FilterBarProps {
   totalCount: number;
@@ -190,6 +191,12 @@ export default function FilterBar({ totalCount, visibleCount }: FilterBarProps) 
                 </div>
               </>
             )}
+          </div>
+
+          {/* 설정 내보내기/가져오기 */}
+          <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">필터 설정 백업</p>
+            <ExportImportPreset />
           </div>
         </div>
       )}

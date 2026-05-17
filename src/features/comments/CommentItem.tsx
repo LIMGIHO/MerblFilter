@@ -37,14 +37,29 @@ function convertUrlsToLinks(text: string): string {
   );
 }
 
-function ProfileImage({ imageUrl, isOwner, size = 'large' }: { imageUrl?: string | null; isOwner: boolean; size?: 'small' | 'large' }) {
-  const defaultImage = 'https://blogimgs.pstatic.net/nblog/comment/login_basic.gif';
+function ProfileImage({ imageUrl, isOwner, name, size = 'large' }: { imageUrl?: string | null; isOwner: boolean; name?: string; size?: 'small' | 'large' }) {
   const sizeClass = size === 'large' ? 'w-8 h-8 sm:w-10 sm:h-10' : 'w-6 h-6 sm:w-8 sm:h-8';
+  const borderClass = isOwner ? 'border-amber-400' : 'border-gray-200 dark:border-gray-600';
+  const initial = (name || '?')[0].toUpperCase();
+  const colors = ['bg-blue-400', 'bg-green-400', 'bg-purple-400', 'bg-pink-400', 'bg-orange-400', 'bg-teal-400'];
+  const colorClass = colors[(initial.charCodeAt(0) ?? 0) % colors.length];
+
+  const [failed, setFailed] = useState(false);
+
+  if (!imageUrl || failed) {
+    return (
+      <div className={`${sizeClass} rounded-full border-2 ${borderClass} ${colorClass} flex items-center justify-center text-white font-bold text-xs flex-shrink-0`}>
+        {initial}
+      </div>
+    );
+  }
+
   return (
     <img
-      src={imageUrl || defaultImage}
+      src={imageUrl}
       alt="프로필"
-      className={`${sizeClass} rounded-full object-cover border-2 ${isOwner ? 'border-amber-400' : 'border-gray-200 dark:border-gray-600'}`}
+      className={`${sizeClass} rounded-full object-cover border-2 ${borderClass} flex-shrink-0`}
+      onError={() => setFailed(true)}
     />
   );
 }
@@ -91,7 +106,7 @@ export default function CommentItem({ comment, searchKeyword = '', regexMode = f
           : 'bg-white border-gray-200 dark:bg-gray-800 dark:border-gray-700'
         }`}
       >
-        <ProfileImage imageUrl={comment.userProfileImage} isOwner={isOwner} size="large" />
+        <ProfileImage imageUrl={comment.userProfileImage} isOwner={isOwner} name={comment.userName || comment.maskedUserName} size="large" />
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-1.5 mb-1">
             <AuthorButton comment={comment} onClick={(e) => handleAuthorClick(e, comment)} />
@@ -119,10 +134,16 @@ export default function CommentItem({ comment, searchKeyword = '', regexMode = f
               </span>
             )}
           </div>
-          <div
-            className="text-gray-800 dark:text-gray-200 text-xs sm:text-sm leading-relaxed break-words"
-            dangerouslySetInnerHTML={{ __html: convertUrlsToLinks(comment.contents) }}
-          />
+          {comment.isSecret ? (
+            <div className="text-xs sm:text-sm text-gray-400 dark:text-gray-500 italic flex items-center gap-1">
+              🔒 비밀 댓글입니다
+            </div>
+          ) : (
+            <div
+              className="text-gray-800 dark:text-gray-200 text-xs sm:text-sm leading-relaxed break-words"
+              dangerouslySetInnerHTML={{ __html: convertUrlsToLinks(comment.contents) }}
+            />
+          )}
           {searchKeyword && (
             <div className="mt-1 text-xs sm:text-sm text-gray-700 dark:text-gray-300">
               {highlightText(comment.contents, searchKeyword, regexMode)}
@@ -149,7 +170,7 @@ export default function CommentItem({ comment, searchKeyword = '', regexMode = f
                 }`}
               >
                 <span className="text-gray-400 font-bold text-sm mt-0.5">ㄴ</span>
-                <ProfileImage imageUrl={reply.userProfileImage} isOwner={replyIsOwner} size="small" />
+                <ProfileImage imageUrl={reply.userProfileImage} isOwner={replyIsOwner} name={reply.userName || reply.maskedUserName} size="small" />
                 <div className="flex-1 min-w-0">
                   <div className="flex flex-wrap items-center gap-1 mb-0.5">
                     <AuthorButton comment={reply} onClick={(e) => handleAuthorClick(e, reply)} />

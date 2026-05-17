@@ -5,7 +5,22 @@ const nextConfig = {
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: 'blogimgs.pstatic.net', pathname: '/**' },
+      { protocol: 'http', hostname: 'blogpfthumb.phinf.naver.net', pathname: '/**' },
+      { protocol: 'https', hostname: 'blogpfthumb.phinf.naver.net', pathname: '/**' },
     ],
+  },
+
+  async headers() {
+    return [
+      {
+        // 메인 목록 페이지에만 COEP/COOP 적용 (LLM 사용)
+        source: '/posts',
+        headers: [
+          { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
+          { key: 'Cross-Origin-Embedder-Policy', value: 'require-corp' },
+        ],
+      },
+    ];
   },
 
   webpack: (config, { isServer }) => {

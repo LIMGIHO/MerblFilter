@@ -4,6 +4,9 @@ import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useReadPostsStore } from '@/store/readPostsStore';
+import dynamic from 'next/dynamic';
+
+const PostAIPanel = dynamic(() => import('@/features/llm/PostAIPanel'), { ssr: false });
 
 interface Post {
   author: string;
@@ -39,6 +42,7 @@ export default function PostList({ initialPosts }: PostListProps) {
   const postsRef = useRef<HTMLUListElement>(null);
   const [posts] = useState<Post[]>(initialPosts);
   const { isRead, markAsRead } = useReadPostsStore();
+  const [openAIPostId, setOpenAIPostId] = useState<string | null>(null);
 
   useEffect(() => {
     if (scrollToId && postsRef.current) {
@@ -49,28 +53,23 @@ export default function PostList({ initialPosts }: PostListProps) {
 
   return (
     <div className="space-y-4">
-      {/* 게시글 목록 */}
       <ul className="space-y-3" ref={postsRef}>
         {posts.map((post, index) => {
           const read = isRead(post.postId);
+          const aiOpen = openAIPostId === post.postId;
+
           return (
             <li
               key={post.postId || `post-${index}`}
               id={`post-${post.postId || index}`}
-              className={`rounded-xl border shadow-sm hover:shadow-md transition-all duration-200
+              className={`rounded-xl border shadow-sm transition-all duration-200
                 ${read
                   ? 'opacity-50 bg-gray-100 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700'
                   : 'bg-white dark:bg-gray-800 border-transparent hover:border-blue-200 dark:hover:border-blue-700'
-                }`}
+                }
+                ${aiOpen ? '!opacity-100 !border-violet-300 dark:!border-violet-700' : ''}`}
             >
-              <Link
-                href={`/posts/${post.postId || index}`}
-                onClick={() => {
-                  sessionStorage.setItem('fromList', 'true');
-                  markAsRead(post.postId);
-                }}
-                className="flex items-start gap-4 p-4 sm:p-5"
-              >
+              <div className="flex items-start gap-4 p-4 sm:p-5">
                 {/* 썸네일 */}
                 {post.image && (
                   <div className="flex-shrink-0">
@@ -86,19 +85,41 @@ export default function PostList({ initialPosts }: PostListProps) {
 
                 {/* 내용 */}
                 <div className="flex-1 min-w-0">
-                  <div className="flex flex-wrap items-start gap-2 mb-1">
-                    <h2 className={`text-base sm:text-lg font-bold leading-snug
-                      ${read ? 'text-gray-400 dark:text-gray-500 line-through' : 'text-gray-900 dark:text-gray-100'}`}>
-                      {post.title}
-                    </h2>
+                  <div className="flex flex-wrap items-start justify-between gap-2 mb-1">
+                    <Link
+                      href={`/posts/${post.postId || index}`}
+                      onClick={() => {
+                        sessionStorage.setItem('fromList', 'true');
+                        markAsRead(post.postId);
+                      }}
+                      className="flex-1 min-w-0"
+                    >
+                      <h2 className={`text-base sm:text-lg font-bold leading-snug
+                        ${read ? 'text-gray-400 dark:text-gray-500 line-through' : 'text-gray-900 dark:text-gray-100'}`}>
+                        {post.title}
+                      </h2>
+                    </Link>
+
+                    {/* AI 버튼 */}
+                    <button
+                      onClick={() => setOpenAIPostId(aiOpen ? null : post.postId)}
+                      className={`flex-shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-all
+                        ${aiOpen
+                          ? 'bg-violet-500 text-white shadow-sm'
+                          : 'bg-violet-50 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 hover:bg-violet-100 dark:hover:bg-violet-900/50 border border-violet-200 dark:border-violet-700'
+                        }`}
+                    >
+                      🤖 AI
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-500 dark:text-gray-400 flex-wrap">
+                    <span>{getRelativeTime(post.pubDate)}</span>
                     {read && (
-                      <span className="text-xs bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400 px-2 py-0.5 rounded-full flex-shrink-0">
+                      <span className="text-xs bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400 px-2 py-0.5 rounded-full">
                         읽음
                       </span>
                     )}
-                  </div>
-                  <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-500 dark:text-gray-400 flex-wrap">
-                    <span>{getRelativeTime(post.pubDate)}</span>
                     {post.category && (
                       <>
                         <span className="text-gray-300 dark:text-gray-600">•</span>
@@ -113,7 +134,17 @@ export default function PostList({ initialPosts }: PostListProps) {
                     )}
                   </div>
                 </div>
-              </Link>
+              </div>
+
+              {/* AI 패널 */}
+              {aiOpen && (
+                <PostAIPanel
+                  postId={post.postId}
+                  blogId="ranto28"
+                  postTitle={post.title}
+                  onClose={() => setOpenAIPostId(null)}
+                />
+              )}
             </li>
           );
         })}
