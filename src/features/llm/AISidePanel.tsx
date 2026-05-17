@@ -22,6 +22,8 @@ function stripHtmlTags(html: string): string {
     .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
     .replace(/\s{2,}/g, ' ')
     .trim();
 }
@@ -64,7 +66,7 @@ function detectContext(prompt: string): 'post' | 'comments' | 'all' {
   const hasComment = commentKeywords.test(prompt);
   if (hasPost && !hasComment) return 'post';
   if (hasComment && !hasPost) return 'comments';
-  return 'all';
+  return 'all'; // default: no keyword match or mixed keywords → use full context
 }
 
 const QUICK_PROMPTS_BY_CONTEXT: Record<'post' | 'comments' | 'all', string[]> = {
@@ -209,24 +211,39 @@ export default function AISidePanel({ isOpen, onClose, selectedPost, width, onWi
     setIsFetching(true);
     let postBody = '';
     let commentsText = '';
+    let commentCount = 0;
+    const resolved = contextMode === 'auto' ? detectContext(finalPrompt) : contextMode;
     try {
-      const [bodyRes, cmtRes] = await Promise.all([
-        fetch(`/api/post-content?postId=${selectedPost.postId}&blogId=${selectedPost.blogId}`),
-        fetch(`/api/comments?postId=${selectedPost.postId}&blogId=${selectedPost.blogId}`),
-      ]);
-      const bodyJson = await bodyRes.json();
-      postBody = String(bodyJson.content ?? '').slice(0, 6000); // 본문 최대 6000자
+      const needsPost = resolved === 'post' || resolved === 'all';
+      const needsComments = resolved === 'comments' || resolved === 'all';
 
-      const cmtJson = await cmtRes.json();
-      const list = cmtJson.result?.commentList ?? [];
-      commentsText = list
-        .filter((c: { replyLevel: number }) => c.replyLevel === 1)
-        .map((c: { userName?: string; contents: string }) => {
-          const rawContent = stripHtmlTags(c.contents);
-          const trimmed = rawContent.length > 150 ? rawContent.slice(0, 150) + '…' : rawContent;
-          return `- ${c.userName ?? '익명'}: ${trimmed}`;
-        })
-        .join('\n');
+      const [bodyRes, cmtRes] = await Promise.all([
+        needsPost
+          ? fetch(`/api/post-content?postId=${selectedPost.postId}&blogId=${selectedPost.blogId}`)
+          : Promise.resolve(null),
+        needsComments
+          ? fetch(`/api/comments?postId=${selectedPost.postId}&blogId=${selectedPost.blogId}`)
+          : Promise.resolve(null),
+      ]);
+
+      if (bodyRes) {
+        const bodyJson = await bodyRes.json();
+        postBody = String(bodyJson.content ?? '').slice(0, 6000); // 본문 최대 6000자
+      }
+
+      if (cmtRes) {
+        const cmtJson = await cmtRes.json();
+        const list = cmtJson.result?.commentList ?? [];
+        const commentLines = list
+          .filter((c: { replyLevel: number }) => c.replyLevel === 1)
+          .map((c: { userName?: string; contents: string }) => {
+            const rawContent = stripHtmlTags(c.contents);
+            const trimmed = rawContent.length > 150 ? rawContent.slice(0, 150) + '…' : rawContent;
+            return `- ${c.userName ?? '익명'}: ${trimmed}`;
+          });
+        commentsText = commentLines.join('\n');
+        commentCount = commentLines.length;
+      }
     } catch {
       commentsText = '(데이터 로딩 실패)';
     }
@@ -244,8 +261,6 @@ export default function AISidePanel({ isOpen, onClose, selectedPost, width, onWi
 
     setIsGenerating(true);
     try {
-      const resolved = contextMode === 'auto' ? detectContext(finalPrompt) : contextMode;
-
       let systemPrompt: string;
       if (resolved === 'post') {
         systemPrompt = `당신은 아래 제공된 [본문]만을 근거로 답하는 블로그 분석 어시스턴트입니다.
@@ -281,9 +296,9 @@ export default function AISidePanel({ isOpen, onClose, selectedPost, width, onWi
       if (resolved === 'post') {
         userPrompt = `[게시글 제목]\n${selectedPost.title}\n\n[본문]\n${postBody || '(본문을 가져오지 못했습니다)'}\n\n[한줄 코멘트]\n${oneLiner || '(없음)'}\n\n[요청]\n${finalPrompt}`;
       } else if (resolved === 'comments') {
-        userPrompt = `[게시글 제목]\n${selectedPost.title}\n\n[댓글 ${commentsText ? commentsText.split('\n').length : 0}개]\n${commentsText || '(댓글 없음)'}\n\n[요청]\n${finalPrompt}`;
+        userPrompt = `[게시글 제목]\n${selectedPost.title}\n\n[댓글 ${commentCount}개]\n${commentsText || '(댓글 없음)'}\n\n[요청]\n${finalPrompt}`;
       } else {
-        userPrompt = `[게시글 제목]\n${selectedPost.title}\n\n[본문]\n${postBody || '(본문을 가져오지 못했습니다 — 제목과 댓글만 참고하세요)'}\n\n[한줄 코멘트]\n${oneLiner || '(없음)'}\n\n[댓글 ${commentsText ? commentsText.split('\n').length : 0}개]\n${commentsText || '(댓글 없음)'}\n\n[요청]\n${finalPrompt}`;
+        userPrompt = `[게시글 제목]\n${selectedPost.title}\n\n[본문]\n${postBody || '(본문을 가져오지 못했습니다 — 제목과 댓글만 참고하세요)'}\n\n[한줄 코멘트]\n${oneLiner || '(없음)'}\n\n[댓글 ${commentCount}개]\n${commentsText || '(댓글 없음)'}\n\n[요청]\n${finalPrompt}`;
       }
 
       await generate(systemPrompt, userPrompt, (chunk) => {
@@ -305,6 +320,10 @@ export default function AISidePanel({ isOpen, onClose, selectedPost, width, onWi
       setIsGenerating(false);
     }
   }, [selectedPost, input, isGenerating, generate, oneLiner, contextMode]);
+
+  const displayedQuickPrompts = contextMode === 'auto'
+    ? QUICK_PROMPTS_BY_CONTEXT.all
+    : QUICK_PROMPTS_BY_CONTEXT[contextMode as 'post' | 'comments' | 'all'];
 
   if (!isOpen) return null;
 
@@ -612,25 +631,18 @@ export default function AISidePanel({ isOpen, onClose, selectedPost, width, onWi
               </div>
 
               {/* 퀵 프롬프트 */}
-              {(() => {
-                const displayedQuickPrompts = contextMode === 'auto'
-                  ? QUICK_PROMPTS_BY_CONTEXT.all
-                  : QUICK_PROMPTS_BY_CONTEXT[contextMode];
-                return (
-                  <div className="flex flex-wrap gap-1.5">
-                    {displayedQuickPrompts.map(q => (
-                      <button
-                        key={q}
-                        onClick={() => handleSubmit(q)}
-                        disabled={isGenerating || isFetching || !selectedPost}
-                        className="text-xs px-2.5 py-1 rounded-full border border-teal-200 dark:border-teal-700 text-teal-600 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-900/30 transition disabled:opacity-40"
-                      >
-                        {q}
-                      </button>
-                    ))}
-                  </div>
-                );
-              })()}
+              <div className="flex flex-wrap gap-1.5">
+                {displayedQuickPrompts.map(q => (
+                  <button
+                    key={q}
+                    onClick={() => handleSubmit(q)}
+                    disabled={isGenerating || isFetching || !selectedPost}
+                    className="text-xs px-2.5 py-1 rounded-full border border-teal-200 dark:border-teal-700 text-teal-600 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-900/30 transition disabled:opacity-40"
+                  >
+                    {q}
+                  </button>
+                ))}
+              </div>
 
               {/* 텍스트 입력 */}
               <div className="flex gap-2">
