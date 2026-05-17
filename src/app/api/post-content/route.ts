@@ -33,7 +33,7 @@ function stripHtml(html: string): string {
  * 예: "한줄 코멘트.. 금리는 내려도 집값은 안 내린다" → "금리는 내려도 집값은 안 내린다"
  */
 function extractOneLiner(text: string): string {
-  const match = text.match(/한\s*줄\s*코멘트\s*[.．·:：\s]*(.+?)(\n|$)/i);
+  const match = text.match(/한\s*줄\s*코멘트\s*[.．·:：]*\s*(.+?)(\n|$)/i);
   return match ? match[1].trim() : '';
 }
 
