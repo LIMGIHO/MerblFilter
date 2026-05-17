@@ -37,11 +37,15 @@ interface AISidePanelProps {
   isOpen: boolean;
   onClose: () => void;
   selectedPost: SelectedPost | null;
+  width: number;
+  onWidthChange: (w: number) => void;
+  minWidth: number;
+  maxWidth: number;
 }
 
 const QUICK_PROMPTS = ['3줄 요약', '스팸 댓글 찾기', '댓글 반응 분석', '부정적 댓글'];
 
-export default function AISidePanel({ isOpen, onClose, selectedPost }: AISidePanelProps) {
+export default function AISidePanel({ isOpen, onClose, selectedPost, width, onWidthChange, minWidth, maxWidth }: AISidePanelProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -56,6 +60,46 @@ export default function AISidePanel({ isOpen, onClose, selectedPost }: AISidePan
   } = useLlmStore();
   const { loadModel, generate, isModelLoaded } = useWebLLM();
   const selectedModel = WEBLLM_MODELS.find(m => m.id === phase2ModelId) ?? WEBLLM_MODELS[1];
+
+  // 리사이즈 / 데스크탑 상태
+  const [isResizing, setIsResizing] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 768px)');
+    setIsDesktop(mq.matches);
+    const h = (e: MediaQueryListEvent) => setIsDesktop(e.matches);
+    mq.addEventListener('change', h);
+    return () => mq.removeEventListener('change', h);
+  }, []);
+
+  // 드래그 중 글로벌 mouse 이벤트
+  useEffect(() => {
+    if (!isResizing) return;
+    const onMove = (e: MouseEvent) => {
+      const target = window.innerWidth - e.clientX;
+      const max = Math.min(maxWidth, window.innerWidth - 320);
+      onWidthChange(Math.min(max, Math.max(minWidth, target)));
+    };
+    const onUp = () => setIsResizing(false);
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    return () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+  }, [isResizing, minWidth, maxWidth, onWidthChange]);
+
+  // 패널 열림 + 다운로드 완료 + idle 상태 → 자동 로드
+  useEffect(() => {
+    if (isOpen && phase2HasDownloaded && phase2Status === 'idle') {
+      loadModel();
+    }
+  }, [isOpen, phase2HasDownloaded, phase2Status, loadModel]);
 
   // 새 메시지 생길 때 맨 아래로 스크롤
   useEffect(() => {
@@ -86,8 +130,14 @@ export default function AISidePanel({ isOpen, onClose, selectedPost }: AISidePan
       const list = data.result?.commentList ?? [];
       commentsText = list
         .filter((c: { replyLevel: number }) => c.replyLevel === 1)
-        .slice(0, 50)
-        .map((c: { userName?: string; contents: string }) => `- ${c.userName ?? '익명'}: ${c.contents}`)
+        .slice(0, 60)
+        .map((c: { userName?: string; contents: string }) => {
+          // 너무 긴 댓글은 잘라서 토큰 폭주 방지
+          const trimmed = c.contents.length > 150
+            ? c.contents.slice(0, 150) + '…'
+            : c.contents;
+          return `- ${c.userName ?? '익명'}: ${trimmed}`;
+        })
         .join('\n');
     } catch {
       commentsText = '(댓글 로딩 실패)';
@@ -118,8 +168,12 @@ export default function AISidePanel({ isOpen, onClose, selectedPost }: AISidePan
         ));
       });
     } catch (e) {
+      const raw = String(e);
+      const friendly = raw.includes('ContextWindowSize') || raw.includes('context window')
+        ? '⚠️ 댓글이 너무 많아 컨텍스트 한도를 초과했어요. 댓글 수가 적은 다른 게시글로 시도해주세요.'
+        : `오류: ${raw}`;
       setMessages(prev => prev.map(m =>
-        m.id === msgId ? { ...m, content: `오류: ${String(e)}`, isError: true } : m
+        m.id === msgId ? { ...m, content: friendly, isError: true } : m
       ));
     } finally {
       setIsGenerating(false);
@@ -137,7 +191,20 @@ export default function AISidePanel({ isOpen, onClose, selectedPost }: AISidePan
       />
 
       {/* 사이드 패널 */}
-      <div className="fixed top-0 right-0 h-screen w-full md:w-96 bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700 shadow-2xl z-50 flex flex-col animate-slide-in-right">
+      <div
+        className="fixed top-0 right-0 h-screen bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700 shadow-2xl z-50 flex flex-col animate-slide-in-right"
+        style={isDesktop ? { width: `${width}px` } : { width: '100%' }}
+      >
+        {/* 리사이즈 핸들 (데스크탑) */}
+        {isDesktop && (
+          <div
+            onMouseDown={(e) => { e.preventDefault(); setIsResizing(true); }}
+            className="absolute top-0 left-0 w-1.5 h-full cursor-col-resize z-10 group"
+            title="드래그해서 너비 조절"
+          >
+            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-1 h-12 rounded-full bg-gray-300 dark:bg-gray-600 group-hover:bg-violet-400 dark:group-hover:bg-violet-500 transition-colors" />
+          </div>
+        )}
 
         {/* 헤더 */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-800 bg-violet-50 dark:bg-violet-900/20 flex-shrink-0">

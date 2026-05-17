@@ -25,12 +25,19 @@ export function useWebLLM() {
 
     try {
       const { CreateMLCEngine } = await import('@mlc-ai/web-llm');
-      const engine = await CreateMLCEngine(phase2ModelId, {
-        initProgressCallback: (report: { progress: number; text: string }) => {
-          setPhase2Progress(Math.round(report.progress * 100));
-          setPhase2ProgressMessage(report.text);
+      const engine = await CreateMLCEngine(
+        phase2ModelId,
+        {
+          initProgressCallback: (report: { progress: number; text: string }) => {
+            setPhase2Progress(Math.round(report.progress * 100));
+            setPhase2ProgressMessage(report.text);
+          },
         },
-      });
+        {
+          // 컨텍스트 윈도우 확장: 기본 4096 → 16384 (댓글 200개+ 수용)
+          context_window_size: 16384,
+        },
+      );
       _engine = engine;
       setPhase2Status('ready');
       setPhase2Progress(100);

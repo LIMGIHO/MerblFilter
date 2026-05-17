@@ -44,16 +44,7 @@ export default async function PostsPage() {
   const posts = await fetchPosts();
 
   return (
-    <main className="max-w-2xl mx-auto p-4 sm:p-6 min-h-screen">
-      <header className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-200 dark:border-gray-800">
-        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-indigo-600 flex items-center justify-center text-white font-bold text-lg shadow">
-          M
-        </div>
-        <div>
-          <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">메르님 블로그</h1>
-          <p className="text-xs text-gray-400">ranto28.blog.naver.com</p>
-        </div>
-      </header>
+    <main className="min-h-screen">
       <Suspense fallback={<div className="text-center py-8 text-gray-400">로딩 중...</div>}>
         <PostList initialPosts={posts} />
       </Suspense>

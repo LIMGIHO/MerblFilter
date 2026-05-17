@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import BuildSeal from '@/components/BuildSeal';
 
 export const metadata: Metadata = {
   title: 'merblFilter v2',
@@ -15,6 +16,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="ko" suppressHydrationWarning>
       <body className="bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 min-h-screen">
         {children}
+        <BuildSeal />
       </body>
     </html>
   );
