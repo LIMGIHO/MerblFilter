@@ -1,10 +1,12 @@
 'use client';
 
-import { useRef, useCallback } from 'react';
+import { useCallback } from 'react';
 import { useLlmStore } from '@/store/llmStore';
 
+// 모듈 레벨 싱글톤 — 컴포넌트 마운트/언마운트에도 유지됨
+let _engine: unknown = null;
+
 export function useWebLLM() {
-  const engineRef = useRef<unknown>(null);
   const {
     phase2ModelId,
     phase2Status,
@@ -28,7 +30,7 @@ export function useWebLLM() {
           setPhase2ProgressMessage(report.text);
         },
       });
-      engineRef.current = engine;
+      _engine = engine;
       setPhase2Status('ready');
       setPhase2Progress(100);
     } catch (err) {
@@ -42,13 +44,13 @@ export function useWebLLM() {
     userPrompt: string,
     onChunk?: (chunk: string) => void,
   ): Promise<string> => {
-    if (!engineRef.current || phase2Status !== 'ready') {
+    if (!_engine || phase2Status !== 'ready') {
       throw new Error('모델이 로드되지 않았습니다');
     }
 
     setPhase2Status('running');
     try {
-      const engine = engineRef.current as {
+      const engine = _engine as {
         chat: {
           completions: {
             create: (params: unknown) => Promise<unknown>;
@@ -91,7 +93,7 @@ export function useWebLLM() {
   }, [phase2Status, setPhase2Status]);
 
   const resetEngine = useCallback(() => {
-    engineRef.current = null;
+    _engine = null;
     setPhase2Status('idle');
     setPhase2Progress(0);
     setPhase2Error(null);

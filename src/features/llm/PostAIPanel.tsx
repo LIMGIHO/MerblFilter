@@ -121,9 +121,10 @@ export default function PostAIPanel({ postId, blogId, postTitle, onClose }: Post
         {phase2Status === 'idle' && (
           <button
             onClick={loadModel}
-            className="w-full py-2 text-sm bg-violet-500 text-white rounded-lg hover:bg-violet-600 transition"
+            className="w-full py-2.5 text-sm bg-violet-500 text-white rounded-lg hover:bg-violet-600 transition"
           >
-            모델 로드 ({selectedModel.size} 다운로드)
+            <div>모델 로드 ({selectedModel.size} 다운로드)</div>
+            <div className="text-xs opacity-70 mt-0.5">⚡ 처음 1회만 다운로드 · 이후 즉시 로드</div>
           </button>
         )}
 
@@ -136,7 +137,10 @@ export default function PostAIPanel({ postId, blogId, postTitle, onClose }: Post
             <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
               <div className="bg-violet-500 h-1.5 rounded-full transition-all" style={{ width: `${phase2Progress}%` }} />
             </div>
-            <div className="text-xs text-gray-400 dark:text-gray-500">첫 다운로드 후 IndexedDB에 캐시됩니다</div>
+            <div className="text-xs text-violet-600 dark:text-violet-400 font-medium">
+              ⚡ 처음 1회만 다운로드됩니다 — 이후에는 즉시 로드
+            </div>
+            <div className="text-xs text-gray-400 dark:text-gray-500">브라우저 캐시(IndexedDB)에 저장됨</div>
           </div>
         )}
 
@@ -172,22 +176,29 @@ export default function PostAIPanel({ postId, blogId, postTitle, onClose }: Post
                 onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSubmit()}
                 placeholder="직접 질문 입력..."
                 disabled={isGenerating || isFetching}
-                className="flex-1 text-sm px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 focus:outline-none focus:border-violet-400 disabled:opacity-50"
+                className="flex-1 text-sm px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:border-violet-400 disabled:opacity-50"
               />
               <button
                 onClick={() => handleSubmit()}
                 disabled={!prompt.trim() || isGenerating || isFetching}
                 className="px-4 py-2 text-sm bg-violet-500 text-white rounded-lg hover:bg-violet-600 transition disabled:opacity-40"
               >
-                {isFetching ? '댓글 로딩...' : isGenerating ? '생성 중...' : '전송'}
+                {isGenerating ? '생성 중...' : '전송'}
               </button>
             </div>
+            {/* 상태 메시지 */}
+            {isFetching && (
+              <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+                <span className="inline-block w-3 h-3 border-2 border-violet-400 border-t-transparent rounded-full animate-spin" />
+                댓글 데이터를 가져오는 중...
+              </div>
+            )}
           </>
         )}
 
         {/* 답변 */}
         {answer && (
-          <div className="text-sm text-gray-800 dark:text-gray-200 bg-gray-50 dark:bg-gray-800 rounded-lg p-3 whitespace-pre-wrap leading-relaxed max-h-60 overflow-y-auto">
+          <div className="text-sm text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3 whitespace-pre-wrap leading-relaxed max-h-60 overflow-y-auto">
             {answer}
             {isGenerating && <span className="inline-block w-1.5 h-4 bg-violet-500 animate-pulse ml-0.5 align-middle" />}
           </div>
