@@ -350,7 +350,7 @@ export default function AISidePanel({ isOpen, onClose, selectedPost, width, onWi
       setIsGenerating(false);
       setGeneratingStage(null);
     }
-  }, [selectedPost, input, isGenerating, generate, oneLiner, contextMode, generatingStage]);
+  }, [selectedPost, input, isGenerating, generate, oneLiner, contextMode]);
 
   const displayedQuickPrompts = contextMode === 'auto'
     ? QUICK_PROMPTS_BY_CONTEXT.all
