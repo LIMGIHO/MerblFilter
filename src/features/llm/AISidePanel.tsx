@@ -43,13 +43,15 @@ interface AISidePanelProps {
   maxWidth: number;
 }
 
-const QUICK_PROMPTS = ['3줄 요약', '스팸 댓글 찾기', '댓글 반응 분석', '부정적 댓글'];
+const QUICK_PROMPTS = ['3줄 요약', '한줄 코멘트', '스팸 댓글 찾기', '댓글 반응 분석', '부정적 댓글'];
 
 export default function AISidePanel({ isOpen, onClose, selectedPost, width, onWidthChange, minWidth, maxWidth }: AISidePanelProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isFetching, setIsFetching] = useState(false);
+  const [oneLiner, setOneLiner] = useState<string>('');
+  const [isFetchingOneLiner, setIsFetchingOneLiner] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const answerRef = useRef('');
   const currentMsgIdRef = useRef('');
@@ -103,6 +105,19 @@ export default function AISidePanel({ isOpen, onClose, selectedPost, width, onWi
       loadModel();
     }
   }, [isOpen, isCurrentModelDownloaded, phase2Status, loadModel]);
+
+  // 패널 열리거나 게시글 바뀔 때 한줄 코멘트 fetch
+  useEffect(() => {
+    if (!isOpen || !selectedPost) { setOneLiner(''); return; }
+    let cancelled = false;
+    setIsFetchingOneLiner(true);
+    fetch(`/api/post-content?postId=${selectedPost.postId}&blogId=${selectedPost.blogId}`)
+      .then(r => r.json())
+      .then(d => { if (!cancelled) setOneLiner(String(d.oneLiner ?? '')); })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setIsFetchingOneLiner(false); });
+    return () => { cancelled = true; };
+  }, [isOpen, selectedPost]);
 
   // 새 메시지 생길 때 맨 아래로 스크롤
   useEffect(() => {
@@ -171,13 +186,17 @@ export default function AISidePanel({ isOpen, onClose, selectedPost, width, onWi
 - 추측은 하지 말되, 본문에 있는 내용은 충분히 살려서 답하세요.
 - 마크다운(**굵게**, - 목록, 1. 번호) 적극 활용해 가독성 확보.
 - 한국어로 자연스럽게, 단정한 톤으로 답하세요. "~입니다", "~합니다" 어미 일관 사용.
-- 본문이 비어있을 때만 한정해서 댓글 위주로 분석하세요.`;
+- 본문이 비어있을 때만 한정해서 댓글 위주로 분석하세요.
+- 요약을 요청받으면 응답 마지막에 반드시 **[메르의 한줄 코멘트]** 섹션을 추가하고, [한줄 코멘트]에 제공된 원문을 그대로 인용하세요.`;
 
       const userPrompt = `[게시글 제목]
 ${selectedPost.title}
 
 [본문]
 ${postBody || '(본문을 가져오지 못했습니다 — 제목과 댓글만 참고하세요)'}
+
+[한줄 코멘트]
+${oneLiner || '(없음)'}
 
 [댓글 ${commentsText ? commentsText.split('\n').length : 0}개]
 ${commentsText || '(댓글 없음)'}
@@ -203,7 +222,7 @@ ${finalPrompt}`;
     } finally {
       setIsGenerating(false);
     }
-  }, [selectedPost, input, isGenerating, generate]);
+  }, [selectedPost, input, isGenerating, generate, oneLiner]);
 
   if (!isOpen) return null;
 
@@ -345,6 +364,19 @@ ${finalPrompt}`;
 
         {/* 대화 목록 */}
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+          {/* 한줄 코멘트 고정 카드 */}
+          {(oneLiner || isFetchingOneLiner) && (
+            <div className="mb-3 px-3 py-2.5 rounded-xl bg-teal-50 dark:bg-teal-900/20 border border-teal-200 dark:border-teal-800 flex-shrink-0">
+              <div className="text-[10px] font-semibold tracking-wide text-teal-600 dark:text-teal-400 mb-1 uppercase">
+                메르의 한줄 코멘트
+              </div>
+              {isFetchingOneLiner ? (
+                <div className="text-xs text-slate-400 dark:text-slate-500 animate-pulse">불러오는 중...</div>
+              ) : (
+                <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">{oneLiner}</p>
+              )}
+            </div>
+          )}
           {messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full gap-2 text-center select-none">
               <span className="text-3xl text-teal-400/40 dark:text-teal-500/30 font-light">✦</span>
