@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { BlogComment } from '@/domain/comment/types';
+import { isOwnerComment } from '@/domain/filter/filterEngine';
 import LocalLLMPanel from '@/features/llm/LocalLLMPanel';
 
 type LlmLabel = 'spam' | 'promo' | 'negative' | 'neutral' | 'positive';
@@ -37,9 +38,7 @@ function formatDate(dateStr?: string) {
   return `${d.getFullYear()}.${(d.getMonth() + 1).toString().padStart(2, '0')}.${d.getDate().toString().padStart(2, '0')} ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
 }
 
-function isOwnerComment(c: BlogComment) {
-  return c.isBlogOwner === true || c.writerProfileUserRoleCode === 'OWNER';
-}
+// filterEngine의 isOwnerComment를 import해서 사용 (profileUserId, userName fallback 포함)
 
 export default function PostComments({ postId, blogId = 'ranto28' }: { postId: string; blogId?: string }) {
   const [showFiltered, setShowFiltered] = useState(false);
