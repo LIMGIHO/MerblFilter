@@ -52,6 +52,8 @@ export default function AISidePanel({ isOpen, onClose, selectedPost, width, onWi
   const [isFetching, setIsFetching] = useState(false);
   const [oneLiner, setOneLiner] = useState<string>('');
   const [isFetchingOneLiner, setIsFetchingOneLiner] = useState(false);
+  const [gpuLabel, setGpuLabel] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const answerRef = useRef('');
   const currentMsgIdRef = useRef('');
@@ -77,6 +79,23 @@ export default function AISidePanel({ isOpen, onClose, selectedPost, width, onWi
     mq.addEventListener('change', h);
     return () => mq.removeEventListener('change', h);
   }, []);
+
+  // WebGPU 지원 여부 감지
+  useEffect(() => {
+    if (typeof navigator !== 'undefined' && 'gpu' in navigator) {
+      setGpuLabel('⚡ GPU · 내 기기');
+    } else {
+      setGpuLabel('💻 CPU · 내 기기');
+    }
+  }, []);
+
+  // ESC 키로 패널 닫기
+  useEffect(() => {
+    if (!isOpen) return;
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [isOpen, onClose]);
 
   // 드래그 중 글로벌 mouse 이벤트
   useEffect(() => {
@@ -123,6 +142,13 @@ export default function AISidePanel({ isOpen, onClose, selectedPost, width, onWi
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  const handleCopy = useCallback((text: string, id: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 2000);
+    }).catch(() => {});
+  }, []);
 
   const handleSubmit = useCallback(async (customPrompt?: string) => {
     if (!selectedPost) return;
@@ -266,6 +292,14 @@ ${finalPrompt}`;
                   <span className="opacity-60">({selectedModel.size})</span>
                   <span className={`transition-transform ${showModelSelect ? 'rotate-180' : ''}`}>▾</span>
                 </button>
+                {gpuLabel && (
+                  <span
+                    className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-default"
+                    title="서버 없이 내 기기에서 직접 실행됩니다. 대화 내용은 외부로 전송되지 않아요."
+                  >
+                    {gpuLabel}
+                  </span>
+                )}
               </div>
               {selectedPost && (
                 <div className="text-xs text-slate-500 dark:text-slate-400 truncate max-w-56 mt-0.5" title={selectedPost.title}>
@@ -432,6 +466,17 @@ ${finalPrompt}`;
                           <MessageContent content={msg.content} />
                           {isGenerating && msg.id === currentMsgIdRef.current && (
                             <span className="inline-block w-0.5 h-4 bg-teal-400 animate-pulse ml-0.5 align-middle" />
+                          )}
+                          {msg.role === 'assistant' && !msg.isError && msg.content && !isGenerating && (
+                            <div className="flex justify-end mt-1.5">
+                              <button
+                                onClick={() => handleCopy(msg.content, msg.id)}
+                                className="text-[10px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition px-1.5 py-0.5 rounded"
+                                title="복사"
+                              >
+                                {copiedId === msg.id ? '✓ 복사됨' : '복사'}
+                              </button>
+                            </div>
                           )}
                         </>
                       ) : (
