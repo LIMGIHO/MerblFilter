@@ -51,6 +51,7 @@ export interface LlmStore {
   phase2ModelId: string;
   phase2Error: string | null;
   phase2ProgressMessage: string;
+  phase2HasDownloaded: boolean; // 최초 다운로드 완료 여부 (localStorage 유지)
 
   setPhase1Enabled: (v: boolean) => void;
   setPhase1Status: (s: ModelStatus) => void;
@@ -63,6 +64,7 @@ export interface LlmStore {
   setPhase2ModelId: (id: string) => void;
   setPhase2Error: (e: string | null) => void;
   setPhase2ProgressMessage: (m: string) => void;
+  setPhase2HasDownloaded: (v: boolean) => void;
 }
 
 export const useLlmStore = create<LlmStore>()(
@@ -80,6 +82,7 @@ export const useLlmStore = create<LlmStore>()(
       phase2ModelId: 'Qwen2.5-1.5B-Instruct-q4f16_1-MLC',
       phase2Error: null,
       phase2ProgressMessage: '',
+      phase2HasDownloaded: false,
 
       setPhase1Enabled: (v) => set({ phase1Enabled: v }),
       setPhase1Status: (s) => set({ phase1Status: s }),
@@ -92,6 +95,7 @@ export const useLlmStore = create<LlmStore>()(
       setPhase2ModelId: (id) => set({ phase2ModelId: id, phase2Status: 'idle' }),
       setPhase2Error: (e) => set({ phase2Error: e }),
       setPhase2ProgressMessage: (m) => set({ phase2ProgressMessage: m }),
+      setPhase2HasDownloaded: (v) => set({ phase2HasDownloaded: v }),
     }),
     {
       name: '@llm_settings',
@@ -101,6 +105,7 @@ export const useLlmStore = create<LlmStore>()(
         phase1ModelId: s.phase1ModelId,
         phase2Enabled: s.phase2Enabled,
         phase2ModelId: s.phase2ModelId,
+        phase2HasDownloaded: s.phase2HasDownloaded,
       }),
     }
   )

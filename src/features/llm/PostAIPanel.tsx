@@ -32,6 +32,7 @@ export default function PostAIPanel({ postId, blogId, postTitle, onClose }: Post
     phase2ProgressMessage,
     phase2ModelId,
     phase2Error,
+    phase2HasDownloaded,
     setPhase2ModelId,
   } = useLlmStore();
 
@@ -123,8 +124,17 @@ export default function PostAIPanel({ postId, blogId, postTitle, onClose }: Post
             onClick={loadModel}
             className="w-full py-2.5 text-sm bg-violet-500 text-white rounded-lg hover:bg-violet-600 transition"
           >
-            <div>모델 로드 ({selectedModel.size} 다운로드)</div>
-            <div className="text-xs opacity-70 mt-0.5">⚡ 처음 1회만 다운로드 · 이후 즉시 로드</div>
+            {phase2HasDownloaded ? (
+              <>
+                <div>모델 로드</div>
+                <div className="text-xs opacity-70 mt-0.5">✅ 이미 다운로드됨 — 캐시에서 빠르게 로드</div>
+              </>
+            ) : (
+              <>
+                <div>모델 로드 ({selectedModel.size} 다운로드)</div>
+                <div className="text-xs opacity-70 mt-0.5">⚡ 처음 1회만 다운로드 · 이후 즉시 로드</div>
+              </>
+            )}
           </button>
         )}
 

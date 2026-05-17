@@ -14,6 +14,7 @@ export function useWebLLM() {
     setPhase2Progress,
     setPhase2Error,
     setPhase2ProgressMessage,
+    setPhase2HasDownloaded,
   } = useLlmStore();
 
   const loadModel = useCallback(async () => {
@@ -33,11 +34,12 @@ export function useWebLLM() {
       _engine = engine;
       setPhase2Status('ready');
       setPhase2Progress(100);
+      setPhase2HasDownloaded(true);
     } catch (err) {
       setPhase2Status('error');
       setPhase2Error(String(err));
     }
-  }, [phase2ModelId, phase2Status, setPhase2Status, setPhase2Progress, setPhase2Error, setPhase2ProgressMessage]);
+  }, [phase2ModelId, phase2Status, setPhase2Status, setPhase2Progress, setPhase2Error, setPhase2ProgressMessage, setPhase2HasDownloaded]);
 
   const generate = useCallback(async (
     systemPrompt: string,
