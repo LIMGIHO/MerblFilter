@@ -58,9 +58,11 @@ function renderInline(text: string): React.ReactNode[] {
 }
 
 type Block =
+  | { type: 'h1' | 'h2' | 'h3'; text: string }
   | { type: 'p'; text: string }
   | { type: 'ul'; items: string[] }
   | { type: 'ol'; items: string[] }
+  | { type: 'hr' }
   | { type: 'br' };
 
 function parseBlocks(text: string): Block[] {
@@ -79,6 +81,33 @@ function parseBlocks(text: string): Block[] {
       } else {
         blocks.push({ type: 'br' });
       }
+      continue;
+    }
+
+    // 구분선 (---, ***)
+    if (/^[-*]{3,}$/.test(line.trim())) {
+      if (currentList) { blocks.push(currentList); currentList = null; }
+      blocks.push({ type: 'hr' });
+      continue;
+    }
+
+    // 헤딩 (###, ##, #)
+    const h3Match = line.match(/^###\s+(.+)/);
+    if (h3Match) {
+      if (currentList) { blocks.push(currentList); currentList = null; }
+      blocks.push({ type: 'h3', text: h3Match[1] });
+      continue;
+    }
+    const h2Match = line.match(/^##\s+(.+)/);
+    if (h2Match) {
+      if (currentList) { blocks.push(currentList); currentList = null; }
+      blocks.push({ type: 'h2', text: h2Match[1] });
+      continue;
+    }
+    const h1Match = line.match(/^#\s+(.+)/);
+    if (h1Match) {
+      if (currentList) { blocks.push(currentList); currentList = null; }
+      blocks.push({ type: 'h1', text: h1Match[1] });
       continue;
     }
 
@@ -125,6 +154,22 @@ export default function MessageContent({ content }: { content: string }) {
     <div className="space-y-1.5">
       {blocks.map((block, i) => {
         if (block.type === 'br') return <div key={i} className="h-2" />;
+        if (block.type === 'hr') return <hr key={i} className="border-slate-200 dark:border-slate-700 my-2" />;
+        if (block.type === 'h1') return (
+          <h2 key={i} className="font-bold text-base text-slate-800 dark:text-slate-100 mt-3 mb-1">
+            {renderInline(block.text)}
+          </h2>
+        );
+        if (block.type === 'h2') return (
+          <h3 key={i} className="font-bold text-sm text-slate-700 dark:text-slate-200 mt-3 mb-1">
+            {renderInline(block.text)}
+          </h3>
+        );
+        if (block.type === 'h3') return (
+          <h4 key={i} className="font-semibold text-sm text-slate-600 dark:text-slate-300 mt-2.5 mb-0.5 flex items-center gap-1">
+            {renderInline(block.text)}
+          </h4>
+        );
         if (block.type === 'p') {
           return (
             <p key={i} className="leading-relaxed">
