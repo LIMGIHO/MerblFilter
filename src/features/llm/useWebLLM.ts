@@ -14,7 +14,7 @@ export function useWebLLM() {
     setPhase2Progress,
     setPhase2Error,
     setPhase2ProgressMessage,
-    setPhase2HasDownloaded,
+    markPhase2ModelDownloaded,
   } = useLlmStore();
 
   const loadModel = useCallback(async () => {
@@ -34,24 +34,25 @@ export function useWebLLM() {
           },
         },
         {
-          // 컨텍스트 윈도우 확장: 기본 4096 → 16384 (댓글 200개+ 수용)
-          context_window_size: 16384,
+          // Qwen 2.5는 native 32K 지원. 댓글 전체 + 본문까지 수용
+          context_window_size: 32768,
         },
       );
       _engine = engine;
       setPhase2Status('ready');
       setPhase2Progress(100);
-      setPhase2HasDownloaded(true);
+      markPhase2ModelDownloaded(phase2ModelId);
     } catch (err) {
       setPhase2Status('error');
       setPhase2Error(String(err));
     }
-  }, [phase2ModelId, phase2Status, setPhase2Status, setPhase2Progress, setPhase2Error, setPhase2ProgressMessage, setPhase2HasDownloaded]);
+  }, [phase2ModelId, phase2Status, setPhase2Status, setPhase2Progress, setPhase2Error, setPhase2ProgressMessage, markPhase2ModelDownloaded]);
 
   const generate = useCallback(async (
     systemPrompt: string,
     userPrompt: string,
     onChunk?: (chunk: string) => void,
+    opts?: { temperature?: number; maxTokens?: number },
   ): Promise<string> => {
     if (!_engine || phase2Status !== 'ready') {
       throw new Error('모델이 로드되지 않았습니다');
@@ -67,6 +68,9 @@ export function useWebLLM() {
         };
       };
 
+      const temperature = opts?.temperature ?? 0.7;
+      const max_tokens = opts?.maxTokens ?? 1536;
+
       if (onChunk) {
         const stream = await engine.chat.completions.create({
           messages: [
@@ -74,10 +78,10 @@ export function useWebLLM() {
             { role: 'user', content: userPrompt },
           ],
           stream: true,
-          temperature: 0.7,
-          max_tokens: 1024,
-          frequency_penalty: 0.6, // 동일 토큰 반복 억제
-          presence_penalty: 0.4,  // 새 주제 등장 유도
+          temperature,
+          max_tokens,
+          frequency_penalty: 0.6,
+          presence_penalty: 0.4,
         }) as AsyncIterable<{ choices: Array<{ delta: { content?: string } }> }>;
 
         let full = '';
@@ -93,8 +97,8 @@ export function useWebLLM() {
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt },
           ],
-          temperature: 0.7,
-          max_tokens: 1024,
+          temperature,
+          max_tokens,
           frequency_penalty: 0.6,
           presence_penalty: 0.4,
         }) as { choices: Array<{ message: { content: string } }> };

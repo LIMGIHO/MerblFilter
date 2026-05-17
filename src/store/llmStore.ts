@@ -51,7 +51,8 @@ export interface LlmStore {
   phase2ModelId: string;
   phase2Error: string | null;
   phase2ProgressMessage: string;
-  phase2HasDownloaded: boolean; // 최초 다운로드 완료 여부 (localStorage 유지)
+  phase2HasDownloaded: boolean; // (DEPRECATED — phase2DownloadedModels 사용)
+  phase2DownloadedModels: string[]; // 다운로드 완료된 모델 ID 목록
 
   setPhase1Enabled: (v: boolean) => void;
   setPhase1Status: (s: ModelStatus) => void;
@@ -65,6 +66,7 @@ export interface LlmStore {
   setPhase2Error: (e: string | null) => void;
   setPhase2ProgressMessage: (m: string) => void;
   setPhase2HasDownloaded: (v: boolean) => void;
+  markPhase2ModelDownloaded: (modelId: string) => void;
 }
 
 export const useLlmStore = create<LlmStore>()(
@@ -83,6 +85,7 @@ export const useLlmStore = create<LlmStore>()(
       phase2Error: null,
       phase2ProgressMessage: '',
       phase2HasDownloaded: false,
+      phase2DownloadedModels: [],
 
       setPhase1Enabled: (v) => set({ phase1Enabled: v }),
       setPhase1Status: (s) => set({ phase1Status: s }),
@@ -96,6 +99,12 @@ export const useLlmStore = create<LlmStore>()(
       setPhase2Error: (e) => set({ phase2Error: e }),
       setPhase2ProgressMessage: (m) => set({ phase2ProgressMessage: m }),
       setPhase2HasDownloaded: (v) => set({ phase2HasDownloaded: v }),
+      markPhase2ModelDownloaded: (modelId) => set((s) => ({
+        phase2DownloadedModels: s.phase2DownloadedModels.includes(modelId)
+          ? s.phase2DownloadedModels
+          : [...s.phase2DownloadedModels, modelId],
+        phase2HasDownloaded: true, // 호환성
+      })),
     }),
     {
       name: '@llm_settings',
@@ -106,6 +115,7 @@ export const useLlmStore = create<LlmStore>()(
         phase2Enabled: s.phase2Enabled,
         phase2ModelId: s.phase2ModelId,
         phase2HasDownloaded: s.phase2HasDownloaded,
+        phase2DownloadedModels: s.phase2DownloadedModels,
       }),
     }
   )

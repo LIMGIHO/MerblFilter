@@ -56,8 +56,11 @@ export default function AISidePanel({ isOpen, onClose, selectedPost, width, onWi
 
   const {
     phase2Status, phase2Progress, phase2ProgressMessage,
-    phase2ModelId, phase2Error, phase2HasDownloaded,
+    phase2ModelId, phase2Error, phase2DownloadedModels,
+    setPhase2ModelId,
   } = useLlmStore();
+  const isCurrentModelDownloaded = phase2DownloadedModels.includes(phase2ModelId);
+  const [showModelSelect, setShowModelSelect] = useState(false);
   const { loadModel, generate, isModelLoaded } = useWebLLM();
   const selectedModel = WEBLLM_MODELS.find(m => m.id === phase2ModelId) ?? WEBLLM_MODELS[1];
 
@@ -96,10 +99,10 @@ export default function AISidePanel({ isOpen, onClose, selectedPost, width, onWi
 
   // 패널 열림 + 다운로드 완료 + idle 상태 → 자동 로드
   useEffect(() => {
-    if (isOpen && phase2HasDownloaded && phase2Status === 'idle') {
+    if (isOpen && isCurrentModelDownloaded && phase2Status === 'idle') {
       loadModel();
     }
-  }, [isOpen, phase2HasDownloaded, phase2Status, loadModel]);
+  }, [isOpen, isCurrentModelDownloaded, phase2Status, loadModel]);
 
   // 새 메시지 생길 때 맨 아래로 스크롤
   useEffect(() => {
@@ -121,18 +124,23 @@ export default function AISidePanel({ isOpen, onClose, selectedPost, width, onWi
     };
     setMessages(prev => [...prev, userMsg]);
 
-    // 댓글 fetch
+    // 본문 + 댓글 병렬 fetch
     setIsFetching(true);
+    let postBody = '';
     let commentsText = '';
     try {
-      const res = await fetch(`/api/comments?postId=${selectedPost.postId}&blogId=${selectedPost.blogId}`);
-      const data = await res.json();
-      const list = data.result?.commentList ?? [];
+      const [bodyRes, cmtRes] = await Promise.all([
+        fetch(`/api/post-content?postId=${selectedPost.postId}&blogId=${selectedPost.blogId}`),
+        fetch(`/api/comments?postId=${selectedPost.postId}&blogId=${selectedPost.blogId}`),
+      ]);
+      const bodyJson = await bodyRes.json();
+      postBody = String(bodyJson.content ?? '').slice(0, 6000); // 본문 최대 6000자
+
+      const cmtJson = await cmtRes.json();
+      const list = cmtJson.result?.commentList ?? [];
       commentsText = list
         .filter((c: { replyLevel: number }) => c.replyLevel === 1)
-        .slice(0, 60)
         .map((c: { userName?: string; contents: string }) => {
-          // 너무 긴 댓글은 잘라서 토큰 폭주 방지
           const trimmed = c.contents.length > 150
             ? c.contents.slice(0, 150) + '…'
             : c.contents;
@@ -140,7 +148,7 @@ export default function AISidePanel({ isOpen, onClose, selectedPost, width, onWi
         })
         .join('\n');
     } catch {
-      commentsText = '(댓글 로딩 실패)';
+      commentsText = '(데이터 로딩 실패)';
     }
     setIsFetching(false);
 
@@ -150,23 +158,45 @@ export default function AISidePanel({ isOpen, onClose, selectedPost, width, onWi
     answerRef.current = '';
     setMessages(prev => [...prev, { id: msgId, role: 'assistant', content: '', postTitle: selectedPost.title }]);
 
+    // 작업 유형 분류 → temperature 조절
+    const isSummary = /요약|정리|핵심|3줄/.test(finalPrompt);
+    const temperature = isSummary ? 0.3 : 0.7;
+
     setIsGenerating(true);
     try {
-      const systemPrompt = `당신은 네이버 블로그 게시글과 댓글을 분석하는 AI입니다.
-반드시 다음 형식으로 한국어 답변하세요:
+      const systemPrompt = `당신은 네이버 블로그 글과 댓글을 분석하는 한국어 AI 어시스턴트입니다.
 
+[규칙]
+- 반드시 제공된 [본문]과 [댓글] 자료에 기반하여 답하세요. 추측이나 외부 지식 추가 금지.
+- 답변은 한국어, 간결하고 구체적으로. 형식적인 미사여구 금지.
+- 정보가 부족하면 "본문에 명확한 언급 없음"이라고 솔직히 말하세요.
+- 마크다운(**굵게**, - 목록, 1. 번호) 적절히 사용해 가독성 확보.
+
+[응답 형식]
 <think>
-요청을 어떻게 처리할지 1~3줄로 짧게 추론
+1~2줄로 어떻게 답할지 짧게 계획
 </think>
-실제 답변 (간결하게)`;
-      const userPrompt = `[게시글 제목]\n${selectedPost.title}\n\n[댓글 목록]\n${commentsText || '(댓글 없음)'}\n\n[요청]\n${finalPrompt}`;
+[실제 답변 — 사용자에게 바로 보일 내용]`;
+
+      const userPrompt = `[게시글 제목]
+${selectedPost.title}
+
+[본문]
+${postBody || '(본문을 가져오지 못했습니다 — 제목과 댓글만 참고하세요)'}
+
+[댓글 ${commentsText ? commentsText.split('\n').length : 0}개]
+${commentsText || '(댓글 없음)'}
+
+[요청]
+${finalPrompt}`;
+
       await generate(systemPrompt, userPrompt, (chunk) => {
         answerRef.current += chunk;
         const { thinking, answer } = splitThinking(answerRef.current);
         setMessages(prev => prev.map(m =>
           m.id === msgId ? { ...m, thinking: thinking || undefined, content: answer } : m
         ));
-      });
+      }, { temperature, maxTokens: isSummary ? 1024 : 1536 });
     } catch (e) {
       const raw = String(e);
       const friendly = raw.includes('ContextWindowSize') || raw.includes('context window')
@@ -211,9 +241,20 @@ export default function AISidePanel({ isOpen, onClose, selectedPost, width, onWi
           <div className="flex items-center gap-2 min-w-0">
             <span className="text-lg">🤖</span>
             <div className="min-w-0">
-              <div className="text-sm font-semibold text-gray-800 dark:text-gray-100">AI 어시스턴트</div>
+              <div className="flex items-center gap-2">
+                <div className="text-sm font-semibold text-gray-800 dark:text-gray-100">AI 어시스턴트</div>
+                <button
+                  onClick={() => setShowModelSelect(v => !v)}
+                  className="text-[10px] px-1.5 py-0.5 rounded-full bg-violet-100 dark:bg-violet-900/50 text-violet-600 dark:text-violet-400 hover:bg-violet-200 dark:hover:bg-violet-800 transition flex items-center gap-0.5"
+                  title="모델 선택"
+                >
+                  <span>{selectedModel.label}</span>
+                  <span className="opacity-60">({selectedModel.size})</span>
+                  <span className={`transition-transform ${showModelSelect ? 'rotate-180' : ''}`}>▾</span>
+                </button>
+              </div>
               {selectedPost && (
-                <div className="text-xs text-gray-500 dark:text-gray-400 truncate max-w-56" title={selectedPost.title}>
+                <div className="text-xs text-gray-500 dark:text-gray-400 truncate max-w-56 mt-0.5" title={selectedPost.title}>
                   {selectedPost.title}
                 </div>
               )}
@@ -227,6 +268,42 @@ export default function AISidePanel({ isOpen, onClose, selectedPost, width, onWi
           </button>
         </div>
 
+        {/* 모델 선택 드롭다운 */}
+        {showModelSelect && (
+          <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800 space-y-1.5 flex-shrink-0 bg-gray-50 dark:bg-gray-800/50">
+            <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+              모델 선택 (변경 시 새 모델 로드 필요)
+            </div>
+            {WEBLLM_MODELS.map(m => {
+              const downloaded = phase2DownloadedModels.includes(m.id);
+              const isCurrent = m.id === phase2ModelId;
+              return (
+                <button
+                  key={m.id}
+                  onClick={() => { setPhase2ModelId(m.id); setShowModelSelect(false); }}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition text-left
+                    ${isCurrent
+                      ? 'bg-violet-100 dark:bg-violet-900/50 text-violet-700 dark:text-violet-300 font-medium ring-1 ring-violet-300 dark:ring-violet-700'
+                      : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                    }`}
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="font-medium">
+                      {m.label} {downloaded && <span className="text-xs text-emerald-500 ml-1">●</span>}
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">{m.description}</div>
+                  </div>
+                  <span className="text-xs text-gray-400 ml-2 flex-shrink-0">{m.size}</span>
+                </button>
+              );
+            })}
+            <div className="text-[10px] text-gray-400 dark:text-gray-500 pt-1 flex items-center gap-1">
+              <span className="text-emerald-500">●</span>
+              <span>다운로드 완료된 모델 (재로드 시 캐시 사용 — 빠름)</span>
+            </div>
+          </div>
+        )}
+
         {/* 모델 로드 / 다운로드 상태 */}
         {phase2Status === 'idle' && (
           <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex-shrink-0">
@@ -234,7 +311,7 @@ export default function AISidePanel({ isOpen, onClose, selectedPost, width, onWi
               onClick={loadModel}
               className="w-full py-2.5 text-sm bg-violet-500 text-white rounded-xl hover:bg-violet-600 transition"
             >
-              {phase2HasDownloaded ? (
+              {isCurrentModelDownloaded ? (
                 <>
                   <div>모델 로드</div>
                   <div className="text-xs opacity-70 mt-0.5">✅ 이미 다운로드됨 — 캐시에서 빠르게 로드</div>
