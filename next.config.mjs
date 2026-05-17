@@ -8,19 +8,6 @@ const nextConfig = {
     ],
   },
 
-  async headers() {
-    return [
-      {
-        source: '/(.*)',
-        headers: [
-          // SharedArrayBuffer / WASM threads 활성화 (Transformers.js & WebLLM 필수)
-          { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
-          { key: 'Cross-Origin-Embedder-Policy', value: 'credentialless' },
-        ],
-      },
-    ];
-  },
-
   webpack: (config, { isServer }) => {
     // Node polyfill 제거
     config.resolve.fallback = { ...config.resolve.fallback, fs: false, path: false };

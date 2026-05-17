@@ -26,7 +26,6 @@ export default function PostComments({ postId, blogId = 'ranto28' }: PostComment
   const [showComments, setShowComments] = useState(false);
   const [showHidden, setShowHidden] = useState(false);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
-  const [isMobile, setIsMobile] = useState(false);
   const [llmLabelMap, setLlmLabelMap] = useState<Record<number, LlmLabel>>({});
 
   const { settings } = useFilterStore();
@@ -36,20 +35,6 @@ export default function PostComments({ postId, blogId = 'ranto28' }: PostComment
     settings
   );
   const visibleCount = countVisible(filtered);
-
-  useEffect(() => {
-    const check = () => setIsMobile(window.innerWidth < 768);
-    check();
-    window.addEventListener('resize', check);
-    return () => window.removeEventListener('resize', check);
-  }, []);
-
-  useEffect(() => {
-    if (isMobile && !showComments) {
-      const fromList = sessionStorage.getItem('fromList');
-      if (!fromList) window.location.href = `https://blog.naver.com/${blogId}/${postId}`;
-    }
-  }, [isMobile, showComments, postId, blogId]);
 
   const loadComments = useCallback(async () => {
     if (!postId) return;
@@ -129,9 +114,9 @@ export default function PostComments({ postId, blogId = 'ranto28' }: PostComment
             regexMode={settings.searchKeywordRegex}
             showHidden={showHidden}
           />
-        ) : isMobile ? (
+        ) : (
           <div className="flex flex-col items-center justify-center h-full gap-4 p-4 text-center text-gray-600 dark:text-gray-400">
-            <p>모바일에서는 네이버 블로그를 직접 표시할 수 없습니다.</p>
+            <p>게시글은 네이버 블로그에서 확인할 수 있습니다.</p>
             <a
               href={`https://blog.naver.com/${blogId}/${postId}`}
               target="_blank" rel="noopener noreferrer"
@@ -140,11 +125,6 @@ export default function PostComments({ postId, blogId = 'ranto28' }: PostComment
               게시글 보기
             </a>
           </div>
-        ) : (
-          <iframe
-            src={`https://blog.naver.com/${blogId}/${postId}`}
-            className="w-full h-full border rounded-xl dark:border-gray-700"
-          />
         )}
       </div>
     </main>
