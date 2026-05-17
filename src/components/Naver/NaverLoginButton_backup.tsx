@@ -31,7 +31,23 @@ export default function NaverLoginButton() {
 
   return (
     <button
-      onClick={() => signIn('naver')}
+      onClick={async () => {
+        await signIn('naver');
+
+        // 서버를 통해 네이버 쿠키 받아오기
+        try {
+          const response = await fetch('/api/naver-proxy');
+          const data = await response.json();
+          
+          if (data.success) {
+            console.log('네이버 쿠키 정보:', data.cookies);
+          } else {
+            console.error('네이버 쿠키 수신 실패:', data.error);
+          }
+        } catch (error) {
+          console.error('네이버 쿠키 수신 오류:', error);
+        }
+      }}
       className="px-4 py-2 bg-[#03C75A] text-white rounded-lg hover:bg-[#02b350] transition-colors flex items-center gap-2 text-sm"
     >
       <img

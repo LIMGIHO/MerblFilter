@@ -1,27 +1,17 @@
-import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
-import './globals.css'
-import Providers from '@/components/Providers'
-
-const inter = Inter({ subsets: ['latin'] })
+import type { Metadata } from 'next';
+import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'MerblFilter',
-  description: '메르님 블로그 필터',
-}
+  title: 'merblFilter v2',
+  description: '메르님 블로그 댓글 필터 — 웹 버전',
+};
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="ko">
-      <body className={inter.className}>
-        <Providers>
-          {children}
-        </Providers>
+    <html lang="ko" suppressHydrationWarning>
+      <body className="bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 min-h-screen">
+        {children}
       </body>
     </html>
-  )
+  );
 }

@@ -1,28 +1,6 @@
-export interface Comment {
-  commentNo: number;
-  parentCommentNo?: number;
-  replyLevel: number;
-  userName?: string;
-  maskedUserName?: string;
-  profileUserId?: string;
-  userProfileImage?: string;
-  contents: string;
-  regTime?: string;
-  regTimeGmt?: string;
-}
+// v2: domain/comment/types.ts 로 통합됨
+export * from '@/domain/comment/types';
 
-export interface CommentWithReplies extends Comment {
-  replies?: Comment[];
-}
-
-export interface BlogComment {
-  success: boolean;
-  message?: string;
-  result: {
-    commentList: Comment[];
-    pageModel?: {
-      page: number;
-      totalPages: number;
-    };
-  };
-} 
+// 하위 호환성을 위해 Comment 타입 유지
+export type Comment = import('@/domain/comment/types').BlogComment;
+export type CommentWithReplies = import('@/domain/comment/types').BlogCommentWithReplies;

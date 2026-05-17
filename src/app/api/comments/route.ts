@@ -1,172 +1,162 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { BlogComment } from '@/app/types/comments';
+import { BlogComment } from '@/domain/comment/types';
+
+// blogId별 groupId 매핑 (ranto28 고정값 — 다른 블로그는 동적 추출 필요)
+const BLOG_CONFIG: Record<string, { groupId: string }> = {
+  ranto28: { groupId: '35863879' },
+};
+
+function normalizeComment(raw: Record<string, unknown>): BlogComment {
+  return {
+    commentNo: Number(raw.commentNo ?? raw.commentNo ?? 0),
+    parentCommentNo: raw.parentCommentNo ? Number(raw.parentCommentNo) : undefined,
+    replyLevel: Number(raw.replyLevel ?? 1),
+    userName: (raw.userName as string) || undefined,
+    maskedUserName: (raw.maskedUserName as string) || undefined,
+    profileUserId: (raw.profileUserId as string) || undefined,
+    userProfileImage: (raw.userProfileImage as string) || undefined,
+    // 블로그 주인장 식별 (cbox 응답 필드 실측)
+    isBlogOwner:
+      raw.isBlogOwner === true ||
+      raw.writerProfileUserRoleCode === 'OWNER' ||
+      raw.userRoleInfo === 'OWNER',
+    writerProfileUserRoleCode: (raw.writerProfileUserRoleCode as string) || undefined,
+    // 좋아요
+    sympathyCount: raw.sympathyCount !== undefined ? Number(raw.sympathyCount) : 0,
+    // 내용
+    contents: (raw.contents as string) ?? '',
+    regTime: (raw.regTime as string) || undefined,
+    regTimeGmt: (raw.regTimeGmt as string) || undefined,
+  };
+}
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const postId = searchParams.get('postId');
+  const blogId = searchParams.get('blogId') || 'ranto28';
+
   if (!postId) {
     return NextResponse.json({ error: 'postId is required' }, { status: 400 });
   }
-  // 실제 네이버 블로그에서 사용하는 값으로 세팅
-  const blogId = 'ranto28';
-  const logNo = postId;
-  const groupId = '35863879';
-  const objectId = `35863879_201_${postId}`;
+
+  const config = BLOG_CONFIG[blogId];
+  const groupId = config?.groupId ?? '35863879';
+  const objectId = `${groupId}_201_${postId}`;
 
   try {
-    // 모든 페이지의 댓글을 합쳐서 반환
-    const allComments = await fetchAllNaverComments({ blogId, logNo, groupId, objectId });
+    const allComments = await fetchAllNaverComments({
+      blogId,
+      logNo: postId,
+      groupId,
+      objectId,
+    });
     return NextResponse.json({
       success: true,
-      result: {
-        commentList: allComments
-      }
+      result: { commentList: allComments },
     });
-  } catch (e) {
-    return NextResponse.json({
-      success: false,
-      message: 'Failed to fetch comments',
-      result: {
-        commentList: []
-      }
-    }, { status: 500 });
+  } catch {
+    return NextResponse.json(
+      { success: false, message: 'Failed to fetch comments', result: { commentList: [] } },
+      { status: 500 }
+    );
   }
 }
 
-async function fetchAllNaverComments({ blogId, logNo, groupId, objectId }: { blogId: string, logNo: string, groupId: string, objectId: string }) {
+async function fetchAllNaverComments({
+  blogId,
+  logNo,
+  groupId,
+  objectId,
+}: {
+  blogId: string;
+  logNo: string;
+  groupId: string;
+  objectId: string;
+}): Promise<BlogComment[]> {
   let allComments: BlogComment[] = [];
-  
-  // 1단계: 첫 번째 요청으로 총 페이지 수 파악
-  const initParams = new URLSearchParams({
+
+  const baseParams = {
     ticket: 'blog',
     templateId: 'default',
     pool: 'blogid',
     _cv: '20250625161346',
-    _callback: `jQuery32108289357807814356_${Date.now()}`,
     lang: 'ko',
     country: '',
-    objectId: objectId,
+    objectId,
     categoryId: '',
     pageSize: '50',
     indexSize: '10',
-    groupId: groupId,
+    groupId,
     listType: 'OBJECT',
     pageType: 'default',
-    page: '1',
-    initialize: 'true',
     followSize: '5',
     userType: '',
     useAltSort: 'true',
     replyPageSize: '10',
     showReply: 'true',
-    _: Date.now().toString()
+  };
+
+  const headers = {
+    accept: '*/*',
+    'accept-language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
+    referer: `https://blog.naver.com/PostView.naver?blogId=${blogId}&logNo=${logNo}`,
+  };
+
+  // 첫 페이지 요청
+  const initParams = new URLSearchParams({
+    ...baseParams,
+    _callback: `jQuery_${Date.now()}`,
+    page: '1',
+    initialize: 'true',
+    _: Date.now().toString(),
   });
 
-  const initUrl = `https://apis.naver.com/commentBox/cbox/web_naver_list_jsonp.json?${initParams.toString()}`;
-  // console.log(`===초기 요청 URL===`, initUrl);
-  
-  try {
-    const initRes = await fetch(initUrl, {
-      headers: {
-        'accept': '*/*',
-        'accept-language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
-        'referer': `https://blog.naver.com/PostView.naver?blogId=${blogId}&logNo=${logNo}`,
-      }
-    });
-    
-    const initText = await initRes.text();
-    const initJson = JSON.parse(initText.replace(/^[^(]*\(|\);?$/g, ''));
-    
-    // console.log(`===초기 요청 응답===`, initJson);
-    
-    if (!initJson.success) {
-      console.log(`===초기 요청 실패===`, initJson.message);
-      return [];
-    }
-    
-    const totalPages = initJson?.result?.pageModel?.totalPages || 1;
-    const currentPageFromInit = initJson?.result?.pageModel?.page || 1;
-    
-    // console.log(`===총 페이지 수: ${totalPages}, 현재 페이지: ${currentPageFromInit}===`);
-    
-    // 첫 번째 요청의 댓글도 추가
-    const initComments = initJson?.result?.commentList ?? [];
-    // console.log(`===초기 댓글 개수: ${initComments.length}===`);
-    allComments = allComments.concat(initComments);
-    
-    // 2단계: 마지막 페이지부터 1페이지까지 역순으로 요청
-    for (let page = totalPages; page >= 1; page--) {
-      // 이미 가져온 페이지는 건너뛰기
-      if (page === currentPageFromInit) {
-        // console.log(`===페이지 ${page} 이미 가져옴, 건너뜀===`);
-        continue;
-      }
-      
-      // console.log(`===페이지 ${page} 요청 중===`);
-      
+  const initRes = await fetch(
+    `https://apis.naver.com/commentBox/cbox/web_naver_list_jsonp.json?${initParams}`,
+    { headers }
+  );
+  const initText = await initRes.text();
+  const initJson = JSON.parse(initText.replace(/^[^(]*\(|\);?$/g, ''));
+
+  if (!initJson.success) return [];
+
+  const totalPages: number = initJson?.result?.pageModel?.totalPages ?? 1;
+  const currentPage: number = initJson?.result?.pageModel?.page ?? 1;
+  const initRaw: Record<string, unknown>[] = initJson?.result?.commentList ?? [];
+  allComments = initRaw.map(normalizeComment);
+
+  // 나머지 페이지 병렬 요청 (Vercel Hobby 타임아웃 대응)
+  const otherPages = Array.from({ length: totalPages }, (_, i) => i + 1).filter(
+    (p) => p !== currentPage
+  );
+
+  const pageResults = await Promise.allSettled(
+    otherPages.map(async (page) => {
       const params = new URLSearchParams({
-        ticket: 'blog',
-        templateId: 'default',
-        pool: 'blogid',
-        _cv: '20250625161346',
-        _callback: `jQuery32108289357807814356_${Date.now()}`,
-        lang: 'ko',
-        country: '',
-        objectId: objectId,
-        categoryId: '',
-        pageSize: '50',
-        indexSize: '10',
-        groupId: groupId,
-        listType: 'OBJECT',
-        pageType: 'default',
+        ...baseParams,
+        _callback: `jQuery_${Date.now()}`,
         page: page.toString(),
-        currentPage: currentPageFromInit.toString(),
+        currentPage: currentPage.toString(),
         refresh: 'false',
         sort: 'REVERSE_NEW',
-        followSize: '5',
-        userType: '',
-        useAltSort: 'true',
-        replyPageSize: '10',
-        showReply: 'true',
-        _: Date.now().toString()
+        _: Date.now().toString(),
       });
+      const res = await fetch(
+        `https://apis.naver.com/commentBox/cbox/web_naver_list_jsonp.json?${params}`,
+        { headers }
+      );
+      const text = await res.text();
+      const json = JSON.parse(text.replace(/^[^(]*\(|\);?$/g, ''));
+      if (!json.success) return [] as BlogComment[];
+      return ((json?.result?.commentList ?? []) as Record<string, unknown>[]).map(normalizeComment);
+    })
+  );
 
-      const apiUrl = `https://apis.naver.com/commentBox/cbox/web_naver_list_jsonp.json?${params.toString()}`;
-      // console.log(`===페이지 ${page} API URL===`, apiUrl);
-      
-      try {
-        const res = await fetch(apiUrl, {
-          headers: {
-            'accept': '*/*',
-            'accept-language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
-            'referer': `https://blog.naver.com/PostView.naver?blogId=${blogId}&logNo=${logNo}`,
-          }
-        });
-                
-        const text = await res.text();
-        const json = JSON.parse(text.replace(/^[^(]*\(|\);?$/g, ''));
-        
-        if (!json.success) {
-          // console.log(`===페이지 ${page} API 에러===`, json.message);
-          continue;
-        }
-        
-        const comments = json?.result?.commentList ?? [];
-                
-        if (comments.length > 0) {
-          allComments = allComments.concat(comments);
-        }
-        
-      } catch (fetchError) {
-        console.log(`===페이지 ${page} fetch 에러===`, fetchError);
-        continue;
-      }
+  for (const result of pageResults) {
+    if (result.status === 'fulfilled') {
+      allComments = allComments.concat(result.value);
     }
-    
-  } catch (error) {
-    console.log(`===초기 요청 에러===`, error);
-    return [];
   }
-  
+
   return allComments;
 }
