@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useReadPostsStore } from '@/store/readPostsStore';
-import ExportImportPreset from '@/features/settings/ExportImportPreset';
 
 interface Post {
   author: string;
@@ -50,14 +49,6 @@ export default function PostList({ initialPosts }: PostListProps) {
 
   return (
     <div className="space-y-4">
-      {/* 설정 export/import 바 */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-lg font-bold text-gray-800 dark:text-gray-100">
-          📝 메르님 블로그
-        </h1>
-        <ExportImportPreset />
-      </div>
-
       {/* 게시글 목록 */}
       <ul className="space-y-3" ref={postsRef}>
         {posts.map((post, index) => {

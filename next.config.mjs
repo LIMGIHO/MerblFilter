@@ -15,7 +15,7 @@ const nextConfig = {
         headers: [
           // SharedArrayBuffer / WASM threads 활성화 (Transformers.js & WebLLM 필수)
           { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
-          { key: 'Cross-Origin-Embedder-Policy', value: 'require-corp' },
+          { key: 'Cross-Origin-Embedder-Policy', value: 'credentialless' },
         ],
       },
     ];
