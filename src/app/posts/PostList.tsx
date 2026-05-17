@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useReadPostsStore } from '@/store/readPostsStore';
@@ -86,7 +85,7 @@ export default function PostList({ initialPosts }: PostListProps) {
                 {/* 내용 */}
                 <div className="flex-1 min-w-0">
                   <div className="flex flex-wrap items-start justify-between gap-2 mb-1">
-                    <Link
+                    <a
                       href={`/posts/${post.postId || index}`}
                       onClick={() => {
                         sessionStorage.setItem('fromList', 'true');
@@ -98,7 +97,7 @@ export default function PostList({ initialPosts }: PostListProps) {
                         ${read ? 'text-gray-400 dark:text-gray-500 line-through' : 'text-gray-900 dark:text-gray-100'}`}>
                         {post.title}
                       </h2>
-                    </Link>
+                    </a>
 
                     {/* AI 버튼 */}
                     <button
