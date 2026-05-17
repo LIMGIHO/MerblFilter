@@ -11,7 +11,7 @@ interface ExtendedSession extends Session {
   accessToken?: string;
 }
 
-export const authOptions = {
+const authOptions = {
   providers: [
     NaverProvider({
       clientId: process.env.NAVER_CLIENT_ID || '',
