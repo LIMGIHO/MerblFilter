@@ -28,19 +28,46 @@ function stripHtml(html: string): string {
     .trim();
 }
 
-function extractBody(html: string): string {
-  // 우선순위: SmartEditor3 → 구형 postViewArea → 전체 폴백
-  const patterns = [
-    /<div[^>]*class="[^"]*se-main-container[^"]*"[^>]*>([\s\S]*?)<div[^>]*class="post_btn_area/,
-    /<div[^>]*class="[^"]*se-main-container[^"]*"[^>]*>([\s\S]*?)<\/section>/,
-    /<div[^>]*id=["']postViewArea["'][^>]*>([\s\S]*?)<div[^>]*class="post_btn_area/,
-    /<div[^>]*id=["']postViewArea["'][^>]*>([\s\S]*?)<\/div>\s*<\/div>/,
-  ];
-  for (const re of patterns) {
-    const m = html.match(re);
-    if (m && m[1]) return stripHtml(m[1]);
+/**
+ * div depth tracking으로 본문 컨테이너의 진짜 끝을 찾아냄
+ * (Naver 모바일 페이지는 `post_btn_area` 같은 마커가 없어서 regex로는 한계)
+ */
+function extractByDepth(html: string, openTagRegex: RegExp): string {
+  const startMatch = html.match(openTagRegex);
+  if (!startMatch || startMatch.index === undefined) return '';
+
+  const contentStart = startMatch.index + startMatch[0].length;
+  let depth = 1;
+  let i = contentStart;
+
+  while (i < html.length && depth > 0) {
+    const openIdx = html.indexOf('<div', i);
+    const closeIdx = html.indexOf('</div>', i);
+    if (closeIdx === -1) break;
+    if (openIdx !== -1 && openIdx < closeIdx) {
+      depth += 1;
+      i = openIdx + 4;
+    } else {
+      depth -= 1;
+      if (depth === 0) return html.slice(contentStart, closeIdx);
+      i = closeIdx + 6;
+    }
   }
   return '';
+}
+
+function extractBody(html: string): string {
+  // SmartEditor3 (최신 네이버 블로그)
+  let raw = extractByDepth(html, /<div[^>]*class="[^"]*se-main-container[^"]*"[^>]*>/);
+  if (!raw) {
+    // 구형 SmartEditor2
+    raw = extractByDepth(html, /<div[^>]*id=["']postViewArea["'][^>]*>/);
+  }
+  if (!raw) {
+    // 더 구형
+    raw = extractByDepth(html, /<div[^>]*class="[^"]*post_ct[^"]*"[^>]*>/);
+  }
+  return raw ? stripHtml(raw) : '';
 }
 
 export async function GET(req: NextRequest) {

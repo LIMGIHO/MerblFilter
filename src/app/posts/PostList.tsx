@@ -106,13 +106,13 @@ export default function PostList({ initialPosts }: PostListProps) {
       <div style={shiftStyle}>
         <div className="max-w-3xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
           {/* 헤더 */}
-          <header className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-200 dark:border-gray-800">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-indigo-600 flex items-center justify-center text-white font-bold text-lg shadow">
+          <header className="flex items-center gap-3 mb-8 pb-5 border-b border-slate-200 dark:border-slate-800">
+            <div className="w-11 h-11 rounded-xl bg-teal-600 dark:bg-teal-500 flex items-center justify-center text-white font-bold text-xl tracking-tight">
               M
             </div>
             <div>
-              <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">메르님 블로그</h1>
-              <p className="text-xs text-gray-400">ranto28.blog.naver.com</p>
+              <h1 className="text-lg font-semibold text-slate-900 dark:text-slate-100 leading-tight">메르님 블로그</h1>
+              <p className="text-xs text-slate-500 dark:text-slate-500 font-mono mt-0.5">ranto28.blog.naver.com</p>
             </div>
           </header>
 
@@ -126,12 +126,12 @@ export default function PostList({ initialPosts }: PostListProps) {
                 <li
                   key={post.postId || `post-${index}`}
                   id={`post-${post.postId || index}`}
-                  className={`rounded-xl border shadow-sm transition-all duration-200
+                  className={`rounded-lg border transition-colors duration-150
                     ${read
-                      ? 'opacity-50 bg-gray-100 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700'
-                      : 'bg-white dark:bg-gray-800 border-transparent hover:border-blue-200 dark:hover:border-blue-700'
+                      ? 'opacity-50 bg-slate-100/60 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800'
+                      : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
                     }
-                    ${isActive ? '!opacity-100 !border-violet-300 dark:!border-violet-700' : ''}`}
+                    ${isActive ? '!opacity-100 !border-teal-500 dark:!border-teal-500 ring-1 ring-teal-500/30 dark:ring-teal-500/30' : ''}`}
                 >
                   <div className="flex items-start gap-4 p-4 sm:p-5">
                     {post.image && (
@@ -156,39 +156,37 @@ export default function PostList({ initialPosts }: PostListProps) {
                           }}
                           className="flex-1 min-w-0"
                         >
-                          <h2 className={`text-base sm:text-lg font-bold leading-snug
-                            ${read ? 'text-gray-400 dark:text-gray-500 line-through' : 'text-gray-900 dark:text-gray-100'}`}>
+                          <h2 className={`text-base sm:text-lg font-semibold leading-snug tracking-tight
+                            ${read ? 'text-slate-400 dark:text-slate-600 line-through' : 'text-slate-900 dark:text-slate-100'}`}>
                             {post.title}
                           </h2>
                         </a>
 
                         <button
                           onClick={() => handleAIClick(post)}
-                          className={`flex-shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-all
+                          className={`flex-shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-colors
                             ${isActive
-                              ? 'bg-violet-500 text-white shadow-sm'
-                              : 'bg-violet-50 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 hover:bg-violet-100 dark:hover:bg-violet-900/50 border border-violet-200 dark:border-violet-700'
+                              ? 'bg-teal-600 dark:bg-teal-500 text-white'
+                              : 'text-slate-500 dark:text-slate-400 hover:text-teal-600 dark:hover:text-teal-400 hover:bg-slate-100 dark:hover:bg-slate-800'
                             }`}
+                          aria-label="AI 어시스턴트 열기"
                         >
-                          🤖 AI
+                          <span className="text-sm leading-none">✦</span>
+                          <span>AI</span>
                         </button>
                       </div>
 
-                      <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-500 dark:text-gray-400 flex-wrap">
+                      <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-500 flex-wrap mt-1.5">
                         <span>{getRelativeTime(post.pubDate)}</span>
                         {read && (
-                          <span className="text-xs bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400 px-2 py-0.5 rounded-full">
+                          <span className="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-600">
                             읽음
                           </span>
                         )}
                         {post.category && (
                           <>
-                            <span className="text-gray-300 dark:text-gray-600">•</span>
-                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium
-                              ${read
-                                ? 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
-                                : 'bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-300'
-                              }`}>
+                            <span className="text-slate-300 dark:text-slate-700">·</span>
+                            <span className="text-slate-600 dark:text-slate-400">
                               {post.category}
                             </span>
                           </>

@@ -30,7 +30,7 @@ function renderInline(text: string): React.ReactNode[] {
       tokens.push(
         <code
           key={key++}
-          className="px-1 py-0.5 rounded bg-gray-200 dark:bg-gray-700 text-xs font-mono"
+          className="px-1 py-0.5 rounded bg-slate-200 dark:bg-slate-700/60 text-xs font-mono text-teal-700 dark:text-teal-300"
         >
           {match[2]}
         </code>

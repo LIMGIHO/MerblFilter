@@ -109,6 +109,17 @@ export const useLlmStore = create<LlmStore>()(
     {
       name: '@llm_settings',
       storage: createJSONStorage(() => localStorage),
+      version: 2,
+      migrate: (persistedState, version) => {
+        const s = persistedState as Partial<LlmStore>;
+        // v1 → v2: phase2HasDownloaded(boolean) → phase2DownloadedModels(string[])
+        if (version < 2) {
+          if (s.phase2HasDownloaded === true && (!s.phase2DownloadedModels || s.phase2DownloadedModels.length === 0)) {
+            s.phase2DownloadedModels = [s.phase2ModelId ?? 'Qwen2.5-1.5B-Instruct-q4f16_1-MLC'];
+          }
+        }
+        return s as LlmStore;
+      },
       partialize: (s) => ({
         phase1Enabled: s.phase1Enabled,
         phase1ModelId: s.phase1ModelId,

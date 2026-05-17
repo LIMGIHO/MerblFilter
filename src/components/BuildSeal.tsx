@@ -15,19 +15,18 @@ export default function BuildSeal() {
       aria-hidden
     >
       <div
-        className="font-mono text-center leading-tight px-3 py-1.5 rounded-md
-                   border border-gray-300/70 dark:border-gray-700/70
-                   bg-white/50 dark:bg-gray-900/40 backdrop-blur-sm
-                   shadow-sm"
+        className="font-mono text-center leading-tight px-2.5 py-1.5 rounded
+                   border border-slate-300/60 dark:border-slate-700/60
+                   bg-white/40 dark:bg-slate-950/40 backdrop-blur-sm"
         title={`Build ${APP_VERSION} · ${APP_BUILD_DATE}`}
       >
-        <div className="text-[11px] font-bold tracking-wide text-violet-600 dark:text-violet-400">
+        <div className="text-[11px] font-semibold tracking-wide text-teal-700 dark:text-teal-400">
           {APP_AUTHOR}
         </div>
-        <div className="text-[8px] tracking-[0.2em] text-gray-400 dark:text-gray-500 mt-0.5">
+        <div className="text-[8px] tracking-[0.25em] text-slate-400 dark:text-slate-600 mt-0.5">
           BUILD SEAL
         </div>
-        <div className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5 font-semibold">
+        <div className="text-[10px] text-slate-500 dark:text-slate-500 mt-0.5 tabular-nums">
           #{APP_VERSION}
         </div>
       </div>
