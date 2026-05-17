@@ -3,13 +3,28 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useLlmStore, WEBLLM_MODELS } from '@/store/llmStore';
 import { useWebLLM } from './useWebLLM';
+import MessageContent from './MessageContent';
 
 interface Message {
   id: string;
   role: 'user' | 'assistant';
-  content: string;
+  content: string;     // 사용자에게 보일 최종 답변
+  thinking?: string;   // <think>...</think> 안의 추론 과정 (어시스턴트 전용)
   postTitle: string;
   isError?: boolean;
+}
+
+/** 스트리밍 텍스트에서 <think>...</think> 와 본문을 분리 */
+function splitThinking(raw: string): { thinking: string; answer: string } {
+  const closed = raw.match(/<think>([\s\S]*?)<\/think>([\s\S]*)/);
+  if (closed) {
+    return { thinking: closed[1].trim(), answer: closed[2].replace(/^\s+/, '') };
+  }
+  const open = raw.match(/<think>([\s\S]*)/);
+  if (open) {
+    return { thinking: open[1].trim(), answer: '' };
+  }
+  return { thinking: '', answer: raw };
 }
 
 export interface SelectedPost {
@@ -39,7 +54,7 @@ export default function AISidePanel({ isOpen, onClose, selectedPost }: AISidePan
     phase2Status, phase2Progress, phase2ProgressMessage,
     phase2ModelId, phase2Error, phase2HasDownloaded,
   } = useLlmStore();
-  const { loadModel, generate, isReady } = useWebLLM();
+  const { loadModel, generate, isModelLoaded } = useWebLLM();
   const selectedModel = WEBLLM_MODELS.find(m => m.id === phase2ModelId) ?? WEBLLM_MODELS[1];
 
   // 새 메시지 생길 때 맨 아래로 스크롤
@@ -87,12 +102,20 @@ export default function AISidePanel({ isOpen, onClose, selectedPost }: AISidePan
 
     setIsGenerating(true);
     try {
-      const systemPrompt = '당신은 네이버 블로그 게시글과 댓글을 분석하는 AI입니다. 한국어로 간결하게 답변하세요.';
+      const systemPrompt = `당신은 네이버 블로그 게시글과 댓글을 분석하는 AI입니다.
+반드시 다음 형식으로 한국어 답변하세요:
+
+<think>
+요청을 어떻게 처리할지 1~3줄로 짧게 추론
+</think>
+실제 답변 (간결하게)`;
       const userPrompt = `[게시글 제목]\n${selectedPost.title}\n\n[댓글 목록]\n${commentsText || '(댓글 없음)'}\n\n[요청]\n${finalPrompt}`;
       await generate(systemPrompt, userPrompt, (chunk) => {
         answerRef.current += chunk;
-        const snapshot = answerRef.current;
-        setMessages(prev => prev.map(m => m.id === msgId ? { ...m, content: snapshot } : m));
+        const { thinking, answer } = splitThinking(answerRef.current);
+        setMessages(prev => prev.map(m =>
+          m.id === msgId ? { ...m, thinking: thinking || undefined, content: answer } : m
+        ));
       });
     } catch (e) {
       setMessages(prev => prev.map(m =>
@@ -204,23 +227,52 @@ export default function AISidePanel({ isOpen, onClose, selectedPost }: AISidePan
                   </div>
                 )}
                 <div className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed whitespace-pre-wrap
+                  <div className={`${msg.role === 'user' ? 'max-w-[85%]' : 'max-w-full w-full'} rounded-2xl px-3.5 py-2.5 text-sm
                     ${msg.role === 'user'
-                      ? 'bg-violet-500 text-white rounded-br-sm'
+                      ? 'bg-violet-500 text-white rounded-br-sm whitespace-pre-wrap leading-relaxed'
                       : msg.isError
-                        ? 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 rounded-bl-sm'
+                        ? 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 rounded-bl-sm whitespace-pre-wrap leading-relaxed'
                         : 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-bl-sm'
                     }`}
                   >
+                    {/* 추론 과정 (어시스턴트 + 에러 아닌 경우만) */}
+                    {msg.role === 'assistant' && !msg.isError && msg.thinking && (
+                      <details
+                        className="mb-2 text-xs text-gray-400 dark:text-gray-500 group"
+                        open={isGenerating && msg.id === currentMsgIdRef.current && !msg.content}
+                      >
+                        <summary className="cursor-pointer flex items-center gap-1 hover:text-gray-600 dark:hover:text-gray-300 select-none list-none">
+                          <span className="inline-block transition-transform group-open:rotate-90">▶</span>
+                          <span>💭 추론 과정</span>
+                          {isGenerating && msg.id === currentMsgIdRef.current && !msg.content && (
+                            <span className="inline-block w-2 h-2 ml-1 border border-violet-400 border-t-transparent rounded-full animate-spin" />
+                          )}
+                        </summary>
+                        <div className="mt-1.5 pl-3 border-l-2 border-violet-200 dark:border-violet-800 italic whitespace-pre-wrap leading-relaxed">
+                          {msg.thinking}
+                        </div>
+                      </details>
+                    )}
+
+                    {/* 본문 / 로딩 표시 */}
                     {msg.content ? (
-                      <>
-                        {msg.content}
-                        {msg.role === 'assistant' && isGenerating && msg.id === currentMsgIdRef.current && (
-                          <span className="inline-block w-0.5 h-4 bg-violet-400 animate-pulse ml-0.5 align-middle" />
-                        )}
-                      </>
+                      msg.role === 'assistant' && !msg.isError ? (
+                        <>
+                          <MessageContent content={msg.content} />
+                          {isGenerating && msg.id === currentMsgIdRef.current && (
+                            <span className="inline-block w-0.5 h-4 bg-violet-400 animate-pulse ml-0.5 align-middle" />
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          {msg.content}
+                          {msg.role === 'assistant' && isGenerating && msg.id === currentMsgIdRef.current && (
+                            <span className="inline-block w-0.5 h-4 bg-violet-400 animate-pulse ml-0.5 align-middle" />
+                          )}
+                        </>
+                      )
                     ) : (
-                      msg.role === 'assistant' && (
+                      msg.role === 'assistant' && !msg.thinking && (
                         <span className="flex items-center gap-1">
                           <span className="w-1.5 h-1.5 bg-violet-400 rounded-full animate-bounce [animation-delay:0ms]" />
                           <span className="w-1.5 h-1.5 bg-violet-400 rounded-full animate-bounce [animation-delay:150ms]" />
@@ -238,7 +290,7 @@ export default function AISidePanel({ isOpen, onClose, selectedPost }: AISidePan
 
         {/* 입력 영역 */}
         <div className="border-t border-gray-100 dark:border-gray-800 p-3 space-y-2 flex-shrink-0">
-          {isReady ? (
+          {isModelLoaded ? (
             <>
               {/* 퀵 프롬프트 */}
               <div className="flex flex-wrap gap-1.5">

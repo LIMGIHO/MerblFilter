@@ -69,6 +69,8 @@ export function useWebLLM() {
           stream: true,
           temperature: 0.7,
           max_tokens: 1024,
+          frequency_penalty: 0.6, // 동일 토큰 반복 억제
+          presence_penalty: 0.4,  // 새 주제 등장 유도
         }) as AsyncIterable<{ choices: Array<{ delta: { content?: string } }> }>;
 
         let full = '';
@@ -86,6 +88,8 @@ export function useWebLLM() {
           ],
           temperature: 0.7,
           max_tokens: 1024,
+          frequency_penalty: 0.6,
+          presence_penalty: 0.4,
         }) as { choices: Array<{ message: { content: string } }> };
         return res.choices[0].message.content;
       }
@@ -106,5 +110,7 @@ export function useWebLLM() {
     generate,
     resetEngine,
     isReady: phase2Status === 'ready',
+    // 메모리에 로드된 상태: 생성중이어도 '로드됨'으로 취급
+    isModelLoaded: phase2Status === 'ready' || phase2Status === 'running',
   };
 }
