@@ -67,7 +67,7 @@ export const metadata: Metadata = {
 
   // ── 네이버·구글 인증코드 (발급 후 채워주세요) ──
   verification: {
-    google: '038e083c9f828c19',
+    google: '6FDyz0MyKHqeMg0rgbUTT6Xd2ceTybyWt9TPfYLsqbU',
     other: {
       'naver-site-verification': '6df1375559dd8bc23e9e8e90da6f94a97fab1025',
     },
