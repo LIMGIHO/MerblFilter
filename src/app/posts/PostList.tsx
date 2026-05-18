@@ -49,6 +49,8 @@ export default function PostList({ initialPosts }: PostListProps) {
   const postsRef = useRef<HTMLUListElement>(null);
   const [posts] = useState<Post[]>(initialPosts);
   const { isRead, markAsRead } = useReadPostsStore();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   // TTS 플레이리스트
   const { add: addToPlaylist, remove: removeFromPlaylist, has: isInPlaylist } = useTtsPlaylistStore();
@@ -124,7 +126,7 @@ export default function PostList({ initialPosts }: PostListProps) {
           {/* 게시글 목록 */}
           <ul className="space-y-3" ref={postsRef}>
             {posts.map((post, index) => {
-              const read = isRead(post.postId);
+              const read = mounted && isRead(post.postId);
               const isActive = panelOpen && selectedPost?.postId === post.postId;
 
               return (
