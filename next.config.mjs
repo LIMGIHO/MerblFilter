@@ -2,6 +2,9 @@
 const nextConfig = {
   eslint: { ignoreDuringBuilds: true },
 
+  // msedge-tts(내부적으로 ws 사용) 같은 네이티브 의존 패키지를 번들링하지 않고 그대로 require
+  serverExternalPackages: ['msedge-tts', 'ws', 'bufferutil', 'utf-8-validate'],
+
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: 'blogimgs.pstatic.net', pathname: '/**' },

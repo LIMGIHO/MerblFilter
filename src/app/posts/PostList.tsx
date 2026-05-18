@@ -3,10 +3,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useReadPostsStore } from '@/store/readPostsStore';
+import { useTtsPlaylistStore } from '@/store/ttsPlaylistStore';
 import dynamic from 'next/dynamic';
 import type { SelectedPost } from '@/features/llm/AISidePanel';
 
 const AISidePanel = dynamic(() => import('@/features/llm/AISidePanel'), { ssr: false });
+const TTSPlayer = dynamic(() => import('@/features/tts/TTSPlayer'), { ssr: false });
 
 interface Post {
   author: string;
@@ -47,6 +49,9 @@ export default function PostList({ initialPosts }: PostListProps) {
   const postsRef = useRef<HTMLUListElement>(null);
   const [posts] = useState<Post[]>(initialPosts);
   const { isRead, markAsRead } = useReadPostsStore();
+
+  // TTS 플레이리스트
+  const { add: addToPlaylist, remove: removeFromPlaylist, has: isInPlaylist } = useTtsPlaylistStore();
 
   // AI 사이드 패널 상태
   const [panelOpen, setPanelOpen] = useState(false);
@@ -134,19 +139,7 @@ export default function PostList({ initialPosts }: PostListProps) {
                     ${isActive ? '!opacity-100 !border-teal-500 dark:!border-teal-500 ring-1 ring-teal-500/30 dark:ring-teal-500/30' : ''}`}
                 >
                   <div className="flex items-start gap-4 p-4 sm:p-5">
-                    {post.image && (
-                      <div className="flex-shrink-0">
-                        <img
-                          src={post.image}
-                          alt={post.author}
-                          className={`w-12 h-12 sm:w-14 sm:h-14 rounded-full object-cover border-2
-                            ${read ? 'grayscale border-gray-300 dark:border-gray-600' : 'border-blue-200 dark:border-blue-700'}`}
-                          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-                        />
-                      </div>
-                    )}
-
-                    <div className="flex-1 min-w-0">
+<div className="flex-1 min-w-0">
                       <div className="flex flex-wrap items-start justify-between gap-2 mb-1">
                         <a
                           href={`/posts/${post.postId || index}`}
@@ -162,18 +155,39 @@ export default function PostList({ initialPosts }: PostListProps) {
                           </h2>
                         </a>
 
-                        <button
-                          onClick={() => handleAIClick(post)}
-                          className={`flex-shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-colors
-                            ${isActive
-                              ? 'bg-teal-600 dark:bg-teal-500 text-white'
-                              : 'text-slate-500 dark:text-slate-400 hover:text-teal-600 dark:hover:text-teal-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-                            }`}
-                          aria-label="AI 어시스턴트 열기"
-                        >
-                          <span className="text-sm leading-none">✦</span>
-                          <span>AI</span>
-                        </button>
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <button
+                            onClick={() => handleAIClick(post)}
+                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-colors
+                              ${isActive
+                                ? 'bg-teal-600 dark:bg-teal-500 text-white'
+                                : 'text-slate-500 dark:text-slate-400 hover:text-teal-600 dark:hover:text-teal-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                              }`}
+                            aria-label="AI 어시스턴트 열기"
+                          >
+                            <span className="text-sm leading-none">✦</span>
+                            <span>AI</span>
+                          </button>
+                          <button
+                            onClick={() => {
+                              const inList = isInPlaylist(post.postId);
+                              if (inList) {
+                                removeFromPlaylist(post.postId);
+                              } else {
+                                addToPlaylist({ postId: post.postId, blogId: 'ranto28', title: post.title });
+                              }
+                            }}
+                            className={`inline-flex items-center justify-center w-7 h-7 rounded-md text-sm font-bold transition-colors
+                              ${isInPlaylist(post.postId)
+                                ? 'bg-teal-500 text-white'
+                                : 'text-slate-400 hover:text-teal-600 hover:bg-slate-100 dark:hover:bg-slate-800'
+                              }`}
+                            aria-label="재생 목록에 추가"
+                            title={isInPlaylist(post.postId) ? '목록에서 제거' : '재생 목록에 추가'}
+                          >
+                            {isInPlaylist(post.postId) ? '♪' : '+'}
+                          </button>
+                        </div>
                       </div>
 
                       <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-500 flex-wrap mt-1.5">
@@ -211,6 +225,9 @@ export default function PostList({ initialPosts }: PostListProps) {
         minWidth={PANEL_MIN}
         maxWidth={PANEL_MAX}
       />
+
+      {/* TTS 플로팅 플레이어 */}
+      <TTSPlayer />
     </>
   );
 }

@@ -4,6 +4,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { useLlmStore, WEBLLM_MODELS } from '@/store/llmStore';
 import { useWebLLM } from './useWebLLM';
 import MessageContent from './MessageContent';
+import { useTtsPlaylistStore } from '@/store/ttsPlaylistStore';
 
 interface Message {
   id: string;
@@ -78,6 +79,7 @@ export default function AISidePanel({ isOpen, onClose, selectedPost, width, onWi
   const [gpuLabel, setGpuLabel] = useState<string | null>(null);
   const [showGpuInfo, setShowGpuInfo] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const { add: addToPlaylist, remove: removeFromPlaylist, has: isInPlaylist } = useTtsPlaylistStore();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const answerRef = useRef('');
   const currentMsgIdRef = useRef('');
@@ -539,6 +541,28 @@ export default function AISidePanel({ isOpen, onClose, selectedPost, width, onWi
               )}
             </div>
           )}
+          {/* 재생 목록 추가 버튼 */}
+          {selectedPost && (
+            <div className="mb-3 flex-shrink-0">
+              <button
+                onClick={() => {
+                  if (isInPlaylist(selectedPost.postId)) {
+                    removeFromPlaylist(selectedPost.postId);
+                  } else {
+                    addToPlaylist({ postId: selectedPost.postId, blogId: selectedPost.blogId, title: selectedPost.title });
+                  }
+                }}
+                className={`w-full py-1.5 rounded-xl text-xs font-medium transition flex items-center justify-center gap-1.5
+                  ${isInPlaylist(selectedPost.postId)
+                    ? 'bg-teal-50 dark:bg-teal-900/20 text-teal-600 dark:text-teal-400 border border-teal-200 dark:border-teal-700'
+                    : 'bg-slate-50 dark:bg-slate-800/40 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:border-teal-300 hover:text-teal-600 dark:hover:text-teal-400'
+                  }`}
+              >
+                {isInPlaylist(selectedPost.postId) ? '♪ 재생 목록에 있음' : '+ 재생 목록에 추가'}
+              </button>
+            </div>
+          )}
+
           {messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full gap-2 text-center select-none">
               <span className="text-3xl text-teal-400/40 dark:text-teal-500/30 font-light">✦</span>
