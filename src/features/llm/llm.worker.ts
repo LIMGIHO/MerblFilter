@@ -95,26 +95,46 @@ self.onmessage = async (event: MessageEvent) => {
     const batchSize = 16;
     const results: Array<{ commentNo: number; label: LlmLabel; score: number }> = [];
 
+    // 단순 인사·짧은 댓글은 분류 불필요 → neutral 처리
+    const SKIP_PATTERNS = /^(감사합니다|고맙습니다|ㄱㄱ|ㅎㅎ+|ㅋㅋ+|ㅠㅠ+|굿|good|좋아요|좋네요|잘봤습니다|잘 봤습니다|수고하세요|수고요|넵|네|응원합니다|화이팅|파이팅)[.!~^]*$/i;
+    const MIN_CHARS = 8; // 8자 미만은 분류 의미 없음
+
     for (let i = 0; i < comments.length; i += batchSize) {
       const batch = comments.slice(i, i + batchSize);
       // HTML 제거 후 512자 제한
       const texts = batch.map((c) => stripHtml(c.contents).slice(0, 512));
 
+      // 단순/짧은 댓글 사전 필터 → neutral 처리 (분류 불필요)
+      const toClassify: typeof batch = [];
+      const skipped: typeof batch = [];
+      for (let j = 0; j < batch.length; j++) {
+        const clean = texts[j];
+        if (clean.length < MIN_CHARS || SKIP_PATTERNS.test(clean.trim())) {
+          skipped.push(batch[j]);
+        } else {
+          toClassify.push(batch[j]);
+        }
+      }
+      skipped.forEach((c) => results.push({ commentNo: c.commentNo, label: 'neutral', score: 1 }));
+
+      if (toClassify.length === 0) continue;
+
       try {
         // topk=5: 모든 클래스 확률분포를 가져와 가중평균으로 판정 (top-1 argmax보다 정확)
+        const classifyTexts = toClassify.map((c) => stripHtml(c.contents).slice(0, 512));
         const outputs = await (classifier as (
           texts: string[],
           opts: { topk: number }
-        ) => Promise<Array<Array<{ label: string; score: number }>>>)(texts, { topk: 5 });
+        ) => Promise<Array<Array<{ label: string; score: number }>>>)(classifyTexts, { topk: 5 });
 
-        for (let j = 0; j < batch.length; j++) {
+        for (let j = 0; j < toClassify.length; j++) {
           const allScores = outputs[j];
           const { label, score } = computeLabel(allScores);
-          results.push({ commentNo: batch[j].commentNo, label, score });
+          results.push({ commentNo: toClassify[j].commentNo, label, score });
         }
       } catch {
         // 배치 실패시 neutral로 처리
-        batch.forEach((c) => results.push({ commentNo: c.commentNo, label: 'neutral', score: 0 }));
+        toClassify.forEach((c) => results.push({ commentNo: c.commentNo, label: 'neutral', score: 0 }));
       }
 
       // 진행률 보고
