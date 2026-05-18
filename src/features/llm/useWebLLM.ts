@@ -90,6 +90,7 @@ export function useWebLLM() {
           full += delta;
           onChunk(delta);
         }
+        setPhase2Status('ready');
         return full;
       } else {
         const res = await engine.chat.completions.create({
@@ -102,10 +103,21 @@ export function useWebLLM() {
           frequency_penalty: 0.6,
           presence_penalty: 0.4,
         }) as { choices: Array<{ message: { content: string } }> };
+        setPhase2Status('ready');
         return res.choices[0].message.content;
       }
-    } finally {
-      setPhase2Status('ready');
+    } catch (err) {
+      // WebGPU 컨텍스트 손실(모바일 백그라운드, 메모리 부족 등) 시 엔진 리셋
+      _engine = null;
+      const msg = String(err);
+      const isGpuError = msg.toLowerCase().includes('gpu') || msg.toLowerCase().includes('webgpu');
+      setPhase2Status('error');
+      setPhase2Error(
+        isGpuError
+          ? 'GPU 오류가 발생했습니다. 다시 로드 버튼을 눌러주세요.'
+          : msg
+      );
+      throw err;
     }
   }, [phase2Status, setPhase2Status]);
 

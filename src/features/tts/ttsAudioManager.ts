@@ -1,0 +1,211 @@
+/**
+ * TTS 오디오 싱글톤 매니저
+ *
+ * React 컴포넌트 외부(모듈 레벨)에 오디오 상태를 보관합니다.
+ * TTSPlayer/useTTS 컴포넌트가 언마운트(페이지 이동)되어도
+ * 오디오 재생이 계속되며, 재마운트 시 기존 상태에 재연결됩니다.
+ */
+
+export type TTSStatus = 'idle' | 'loading' | 'playing' | 'paused';
+
+type Listener = () => void;
+
+interface AudioState {
+  status: TTSStatus;
+  currentTime: number;
+  duration: number;
+  rate: number;
+}
+
+class TTSAudioManager {
+  private audio: HTMLAudioElement | null = null;
+  private objectUrl: string | null = null;
+  private onEndCallback: (() => void) | undefined = undefined;
+  private listeners = new Set<Listener>();
+  private _status: TTSStatus = 'idle';
+  private _rate = 1.0;
+  private _currentTime = 0;
+  private _duration = 0;
+  private cancelToken = 0;
+
+  // ── 구독 ────────────────────────────────────────────────
+  subscribe(fn: Listener) {
+    this.listeners.add(fn);
+    return () => { this.listeners.delete(fn); };
+  }
+
+  private notify() {
+    this.listeners.forEach((fn) => fn());
+  }
+
+  // ── 상태 읽기 ────────────────────────────────────────────
+  getState(): AudioState {
+    return {
+      status: this._status,
+      currentTime: this._currentTime,
+      duration: this._duration,
+      rate: this._rate,
+    };
+  }
+
+  // ── 내부 상태 변경 ───────────────────────────────────────
+  private setStatus(s: TTSStatus) {
+    this._status = s;
+    this.notify();
+  }
+
+  // ── 오디오 정리 ──────────────────────────────────────────
+  private cleanupAudio() {
+    if (this.audio) {
+      this.audio.pause();
+      this.audio.src = '';
+      this.audio = null;
+    }
+    if (this.objectUrl) {
+      URL.revokeObjectURL(this.objectUrl);
+      this.objectUrl = null;
+    }
+    this._currentTime = 0;
+    this._duration = 0;
+    this.notify();
+  }
+
+  // ── 재생 ─────────────────────────────────────────────────
+  async play(text: string, onEnd?: () => void): Promise<void> {
+    this.cancelToken++;
+    const token = this.cancelToken;
+    this.cleanupAudio();
+    this.onEndCallback = onEnd;
+    this.setStatus('loading');
+
+    try {
+      const res = await fetch('/api/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+
+      if (token !== this.cancelToken) return;
+      if (!res.ok) throw new Error(`TTS 요청 실패: ${res.status}`);
+
+      const canStream =
+        typeof MediaSource !== 'undefined' &&
+        MediaSource.isTypeSupported('audio/mpeg') &&
+        !!res.body;
+
+      if (!canStream) {
+        const blob = await res.blob();
+        if (token !== this.cancelToken) return;
+        this.objectUrl = URL.createObjectURL(blob);
+        this.audio = new Audio(this.objectUrl);
+        this.audio.playbackRate = this._rate;
+        this._attachListeners(this.audio, token);
+        await this.audio.play();
+        if (token === this.cancelToken) this.setStatus('playing');
+        return;
+      }
+
+      // MediaSource 스트리밍
+      const ms = new MediaSource();
+      this.objectUrl = URL.createObjectURL(ms);
+      const audio = new Audio(this.objectUrl);
+      audio.playbackRate = this._rate;
+      this.audio = audio;
+      this._attachListeners(audio, token);
+
+      await new Promise<void>((resolve, reject) => {
+        ms.addEventListener('sourceopen', async () => {
+          let sb: SourceBuffer;
+          try { sb = ms.addSourceBuffer('audio/mpeg'); } catch (e) { reject(e); return; }
+
+          const reader = res.body!.getReader();
+          let playStarted = false;
+          const waitEnd = () => new Promise<void>((r) =>
+            sb.addEventListener('updateend', () => r(), { once: true })
+          );
+
+          try {
+            while (true) {
+              const { done, value } = await reader.read();
+              if (token !== this.cancelToken) { reader.cancel(); try { ms.endOfStream(); } catch {} resolve(); return; }
+              if (done) { if (sb.updating) await waitEnd(); try { ms.endOfStream(); } catch {} resolve(); return; }
+              if (sb.updating) await waitEnd();
+              if (token !== this.cancelToken) { resolve(); return; }
+              sb.appendBuffer(value);
+              await waitEnd();
+              if (!playStarted) {
+                playStarted = true;
+                audio.play()
+                  .then(() => { if (token === this.cancelToken) this.setStatus('playing'); })
+                  .catch((e) => console.error('[TTS] play error:', e));
+              }
+            }
+          } catch (err) { reject(err); }
+        }, { once: true });
+      });
+    } catch (err) {
+      console.error('[TTS]', err);
+      if (token === this.cancelToken) this.setStatus('idle');
+    }
+  }
+
+  private _attachListeners(audio: HTMLAudioElement, token: number) {
+    audio.addEventListener('timeupdate', () => {
+      if (token !== this.cancelToken) return;
+      this._currentTime = audio.currentTime;
+      this.notify();
+    });
+    audio.addEventListener('durationchange', () => {
+      if (isFinite(audio.duration)) { this._duration = audio.duration; this.notify(); }
+    });
+    audio.onended = () => {
+      if (token !== this.cancelToken) return;
+      this.setStatus('idle');
+      this._currentTime = 0;
+      const cb = this.onEndCallback;
+      this.onEndCallback = undefined;
+      cb?.();
+    };
+    audio.onerror = () => {
+      if (token === this.cancelToken) this.setStatus('idle');
+    };
+  }
+
+  // ── 컨트롤 ───────────────────────────────────────────────
+  pause() {
+    if (this.audio && this._status === 'playing') {
+      this.audio.pause();
+      this.setStatus('paused');
+    }
+  }
+
+  resume() {
+    if (this.audio && this._status === 'paused') {
+      this.audio.play()
+        .then(() => this.setStatus('playing'))
+        .catch(() => this.setStatus('idle'));
+    }
+  }
+
+  stop() {
+    this.cancelToken++;
+    this.cleanupAudio();
+    this.onEndCallback = undefined;
+    this.setStatus('idle');
+  }
+
+  seek(time: number) {
+    if (this.audio && isFinite(this.audio.duration)) {
+      this.audio.currentTime = Math.max(0, Math.min(time, this.audio.duration));
+    }
+  }
+
+  setRate(r: number) {
+    this._rate = r;
+    if (this.audio) this.audio.playbackRate = r;
+    this.notify();
+  }
+}
+
+// 모듈 레벨 싱글톤 — 페이지 이동해도 유지됨
+export const ttsAudioManager = new TTSAudioManager();
