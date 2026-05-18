@@ -67,9 +67,9 @@ export const metadata: Metadata = {
 
   // ── 네이버·구글 인증코드 (발급 후 채워주세요) ──
   verification: {
-    google: '',   // Google Search Console → 속성 추가 → HTML 태그 방식 코드
+    google: '038e083c9f828c19',
     other: {
-      'naver-site-verification': '',  // 네이버 웹마스터도구 → 사이트 등록 → HTML 태그 방식 코드
+      'naver-site-verification': '6df1375559dd8bc23e9e8e90da6f94a97fab1025',
     },
   },
 };
