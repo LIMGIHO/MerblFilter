@@ -19,6 +19,14 @@ export function useWebLLM() {
 
   const loadModel = useCallback(async () => {
     if (phase2Status === 'ready') return;
+
+    // WebGPU 미지원 기기(iOS Safari, 일부 Android) 사전 차단
+    if (typeof navigator === 'undefined' || !('gpu' in navigator)) {
+      setPhase2Status('error');
+      setPhase2Error('이 기기는 WebGPU를 지원하지 않습니다. 데스크탑 Chrome 또는 Edge를 사용해 주세요.');
+      return;
+    }
+
     setPhase2Status('downloading');
     setPhase2Progress(0);
     setPhase2Error(null);
@@ -43,8 +51,15 @@ export function useWebLLM() {
       setPhase2Progress(100);
       markPhase2ModelDownloaded(phase2ModelId);
     } catch (err) {
+      _engine = null;
+      const msg = String(err);
+      const isGpuError = msg.toLowerCase().includes('gpu') || msg.toLowerCase().includes('webgpu');
       setPhase2Status('error');
-      setPhase2Error(String(err));
+      setPhase2Error(
+        isGpuError
+          ? 'GPU 오류가 발생했습니다. 페이지를 새로고침하거나 데스크탑 브라우저를 사용해 주세요.'
+          : msg
+      );
     }
   }, [phase2ModelId, phase2Status, setPhase2Status, setPhase2Progress, setPhase2Error, setPhase2ProgressMessage, markPhase2ModelDownloaded]);
 
