@@ -6,6 +6,10 @@ import { pipeline, env } from '@xenova/transformers';
 env.useBrowserCache = true;
 env.allowLocalModels = false;
 
+// WASM 파일을 CDN(jsDelivr) 대신 self-hosted 경로에서 로드
+// CDN이 COEP credentialless Worker 환경에서 막히는 문제 방지
+env.backends.onnx.wasm.wasmPaths = '/wasm/';
+
 type LlmLabel = 'spam' | 'promo' | 'negative' | 'neutral' | 'positive';
 
 // HTML 태그 제거 (댓글 contents에 <br> 등 포함될 수 있음)
