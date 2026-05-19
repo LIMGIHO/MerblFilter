@@ -8,7 +8,7 @@ import dynamic from 'next/dynamic';
 import type { SelectedPost } from '@/features/llm/AISidePanel';
 
 const AISidePanel = dynamic(() => import('@/features/llm/AISidePanel'), { ssr: false });
-const TTSPlayer = dynamic(() => import('@/features/tts/TTSPlayer'), { ssr: false });
+const CommentsPanel = dynamic(() => import('./CommentsPanel'), { ssr: false });
 
 interface Post {
   author: string;
@@ -43,6 +43,9 @@ function getRelativeTime(dateString: string) {
   });
 }
 
+// 패널 모드: null = 닫힘, 'ai' = AI 패널, 'comments' = 댓글 패널
+type PanelMode = 'ai' | 'comments' | null;
+
 export default function PostList({ initialPosts }: PostListProps) {
   const searchParams = useSearchParams();
   const scrollToId = searchParams.get('scrollTo');
@@ -52,16 +55,14 @@ export default function PostList({ initialPosts }: PostListProps) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
-  // TTS 플레이리스트
   const { add: addToPlaylist, remove: removeFromPlaylist, has: isInPlaylist } = useTtsPlaylistStore();
 
-  // AI 사이드 패널 상태
-  const [panelOpen, setPanelOpen] = useState(false);
+  // 패널 상태 — AI와 댓글 패널 공유
+  const [panelMode, setPanelMode] = useState<PanelMode>(null);
   const [selectedPost, setSelectedPost] = useState<SelectedPost | null>(null);
   const [panelWidth, setPanelWidth] = useState<number>(PANEL_DEFAULT);
   const [isDesktop, setIsDesktop] = useState(false);
 
-  // 저장된 너비 hydration
   useEffect(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -72,12 +73,10 @@ export default function PostList({ initialPosts }: PostListProps) {
     } catch {}
   }, []);
 
-  // 너비 변경 시 저장
   useEffect(() => {
     try { localStorage.setItem(STORAGE_KEY, String(panelWidth)); } catch {}
   }, [panelWidth]);
 
-  // 데스크탑 여부 감지
   useEffect(() => {
     const mq = window.matchMedia('(min-width: 768px)');
     setIsDesktop(mq.matches);
@@ -86,7 +85,6 @@ export default function PostList({ initialPosts }: PostListProps) {
     return () => mq.removeEventListener('change', handler);
   }, []);
 
-  // scrollTo 처리
   useEffect(() => {
     if (scrollToId && postsRef.current) {
       const el = document.getElementById(`post-${scrollToId}`);
@@ -96,15 +94,25 @@ export default function PostList({ initialPosts }: PostListProps) {
 
   function handleAIClick(post: Post) {
     const sp: SelectedPost = { postId: post.postId, blogId: 'ranto28', title: post.title };
-    if (panelOpen && selectedPost?.postId === post.postId) {
-      setPanelOpen(false);
+    if (panelMode === 'ai' && selectedPost?.postId === post.postId) {
+      setPanelMode(null);
     } else {
       setSelectedPost(sp);
-      setPanelOpen(true);
+      setPanelMode('ai');
     }
   }
 
-  // 데스크탑에서만 마진 적용
+  function handleCommentsClick(post: Post) {
+    const sp: SelectedPost = { postId: post.postId, blogId: 'ranto28', title: post.title };
+    if (panelMode === 'comments' && selectedPost?.postId === post.postId) {
+      setPanelMode(null);
+    } else {
+      setSelectedPost(sp);
+      setPanelMode('comments');
+    }
+  }
+
+  const panelOpen = panelMode !== null;
   const shiftStyle: React.CSSProperties =
     isDesktop && panelOpen ? { marginRight: `${panelWidth}px` } : {};
 
@@ -128,6 +136,8 @@ export default function PostList({ initialPosts }: PostListProps) {
             {posts.map((post, index) => {
               const read = mounted && isRead(post.postId);
               const isActive = panelOpen && selectedPost?.postId === post.postId;
+              const isAIActive = panelMode === 'ai' && selectedPost?.postId === post.postId;
+              const isCommentsActive = panelMode === 'comments' && selectedPost?.postId === post.postId;
 
               return (
                 <li
@@ -141,27 +151,42 @@ export default function PostList({ initialPosts }: PostListProps) {
                     ${isActive ? '!opacity-100 !border-teal-500 dark:!border-teal-500 ring-1 ring-teal-500/30 dark:ring-teal-500/30' : ''}`}
                 >
                   <div className="flex items-start gap-4 p-4 sm:p-5">
-<div className="flex-1 min-w-0">
+                    <div className="flex-1 min-w-0">
                       <div className="flex flex-wrap items-start justify-between gap-2 mb-1">
+                        {/* 제목 → Naver 블로그 새 탭으로 직접 이동 */}
                         <a
-                          href={`/posts/${post.postId || index}`}
-                          onClick={() => {
-                            sessionStorage.setItem('fromList', 'true');
-                            markAsRead(post.postId);
-                          }}
+                          href={`https://blog.naver.com/ranto28/${post.postId}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={() => markAsRead(post.postId)}
                           className="flex-1 min-w-0"
                         >
                           <h2 className={`text-base sm:text-lg font-semibold leading-snug tracking-tight
-                            ${read ? 'text-slate-400 dark:text-slate-600 line-through' : 'text-slate-900 dark:text-slate-100'}`}>
+                            ${read ? 'text-slate-400 dark:text-slate-600 line-through' : 'text-slate-900 dark:text-slate-100 hover:text-teal-600 dark:hover:text-teal-400'}`}>
                             {post.title}
                           </h2>
                         </a>
 
                         <div className="flex items-center gap-1 flex-shrink-0">
+                          {/* 댓글 버튼 */}
+                          <button
+                            onClick={() => handleCommentsClick(post)}
+                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-colors
+                              ${isCommentsActive
+                                ? 'bg-blue-500 text-white'
+                                : 'text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                              }`}
+                            aria-label="댓글 보기"
+                            title="댓글 보기"
+                          >
+                            <span className="text-sm leading-none">💬</span>
+                          </button>
+
+                          {/* AI 버튼 */}
                           <button
                             onClick={() => handleAIClick(post)}
                             className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-colors
-                              ${isActive
+                              ${isAIActive
                                 ? 'bg-teal-600 dark:bg-teal-500 text-white'
                                 : 'text-slate-500 dark:text-slate-400 hover:text-teal-600 dark:hover:text-teal-400 hover:bg-slate-100 dark:hover:bg-slate-800'
                               }`}
@@ -170,10 +195,11 @@ export default function PostList({ initialPosts }: PostListProps) {
                             <span className="text-sm leading-none">✦</span>
                             <span>AI</span>
                           </button>
+
+                          {/* TTS 재생목록 버튼 */}
                           <button
                             onClick={() => {
-                              const inList = isInPlaylist(post.postId);
-                              if (inList) {
+                              if (isInPlaylist(post.postId)) {
                                 removeFromPlaylist(post.postId);
                               } else {
                                 addToPlaylist({ postId: post.postId, blogId: 'ranto28', title: post.title });
@@ -202,9 +228,7 @@ export default function PostList({ initialPosts }: PostListProps) {
                         {post.category && (
                           <>
                             <span className="text-slate-300 dark:text-slate-700">·</span>
-                            <span className="text-slate-600 dark:text-slate-400">
-                              {post.category}
-                            </span>
+                            <span className="text-slate-600 dark:text-slate-400">{post.category}</span>
                           </>
                         )}
                       </div>
@@ -219,8 +243,8 @@ export default function PostList({ initialPosts }: PostListProps) {
 
       {/* AI 사이드 패널 */}
       <AISidePanel
-        isOpen={panelOpen}
-        onClose={() => setPanelOpen(false)}
+        isOpen={panelMode === 'ai'}
+        onClose={() => setPanelMode(null)}
         selectedPost={selectedPost}
         width={panelWidth}
         onWidthChange={setPanelWidth}
@@ -228,8 +252,20 @@ export default function PostList({ initialPosts }: PostListProps) {
         maxWidth={PANEL_MAX}
       />
 
-      {/* TTS 플로팅 플레이어 */}
-      <TTSPlayer />
+      {/* 댓글 사이드 패널 */}
+      {selectedPost && (
+        <CommentsPanel
+          isOpen={panelMode === 'comments'}
+          onClose={() => setPanelMode(null)}
+          postId={selectedPost.postId}
+          blogId={selectedPost.blogId}
+          title={selectedPost.title}
+          width={panelWidth}
+          onWidthChange={setPanelWidth}
+          minWidth={PANEL_MIN}
+          maxWidth={PANEL_MAX}
+        />
+      )}
     </>
   );
 }

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import BuildSeal from '@/components/BuildSeal';
+import TTSPlayerWrapper from '@/components/TTSPlayerWrapper';
 
 const BASE_URL = 'https://merbl-filter.vercel.app';
 const OG_IMAGE = `${BASE_URL}/og`;
@@ -128,6 +129,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 min-h-screen">
         {children}
         <BuildSeal />
+        <TTSPlayerWrapper />
       </body>
     </html>
   );
