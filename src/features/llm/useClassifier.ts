@@ -28,15 +28,10 @@ export function useClassifier(): UseClassifierReturn {
     setPhase1Error,
   } = useLlmStore();
 
-  // Worker 초기화
-  // dev 모드: Next.js dev 서버가 Sec-Fetch-Dest:worker 요청에 503을 반환
-  //   → fetch() → Blob URL로 우회
-  // production: new Worker(url) 직접 사용 (503 문제 없음)
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
     let worker: Worker | null = null;
-    let blobUrl: string | null = null;
 
     const workerUrl = new URL('./llm.worker.ts', import.meta.url);
 
@@ -63,32 +58,13 @@ export function useClassifier(): UseClassifierReturn {
       workerRef.current = w;
     }
 
-    if (process.env.NODE_ENV === 'development') {
-      // dev: fetch → Blob URL (new Worker(url) 503 우회)
-      fetch(workerUrl.href)
-        .then((res) => {
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          return res.text();
-        })
-        .then((code) => {
-          const blob = new Blob([code], { type: 'text/javascript' });
-          blobUrl = URL.createObjectURL(blob);
-          worker = new Worker(blobUrl);
-          attachHandlers(worker);
-        })
-        .catch((err) => {
-          setPhase1Status('error');
-          setPhase1Error(`Worker 로드 실패: ${err.message}`);
-        });
-    } else {
-      // production: 직접 생성
-      worker = new Worker(workerUrl, { type: 'module' });
-      attachHandlers(worker);
-    }
+    // Next.js 15 dev 서버는 { type: 'module' } Worker를 정상 처리함
+    // Blob URL Worker는 origin=null → IndexedDB(useBrowserCache) SecurityError로 멈춤
+    worker = new Worker(workerUrl, { type: 'module' });
+    attachHandlers(worker);
 
     return () => {
       worker?.terminate();
-      if (blobUrl) URL.revokeObjectURL(blobUrl);
     };
   }, []);
 
