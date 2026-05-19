@@ -77,6 +77,7 @@ export default function AISidePanel({ isOpen, onClose, selectedPost, width, onWi
   const [oneLiner, setOneLiner] = useState<string>('');
   const [isFetchingOneLiner, setIsFetchingOneLiner] = useState(false);
   const [gpuLabel, setGpuLabel] = useState<string | null>(null);
+  const [isWebGpuSupported, setIsWebGpuSupported] = useState(true);
   const [showGpuInfo, setShowGpuInfo] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const { add: addToPlaylist, remove: removeFromPlaylist, has: isInPlaylist } = useTtsPlaylistStore();
@@ -108,11 +109,9 @@ export default function AISidePanel({ isOpen, onClose, selectedPost, width, onWi
 
   // WebGPU 지원 여부 감지
   useEffect(() => {
-    if (typeof navigator !== 'undefined' && 'gpu' in navigator) {
-      setGpuLabel('⚡ GPU · 내 기기');
-    } else {
-      setGpuLabel('💻 CPU · 내 기기');
-    }
+    const supported = typeof navigator !== 'undefined' && 'gpu' in navigator;
+    setIsWebGpuSupported(supported);
+    setGpuLabel(supported ? '⚡ GPU · 내 기기' : '💻 CPU · 내 기기');
   }, []);
 
   // ESC 키로 패널 닫기 / GPU 팝업 닫기
@@ -154,12 +153,12 @@ export default function AISidePanel({ isOpen, onClose, selectedPost, width, onWi
     };
   }, [isResizing, minWidth, maxWidth, onWidthChange]);
 
-  // 패널 열림 + 다운로드 완료 + idle 상태 → 자동 로드
+  // 패널 열림 + 다운로드 완료 + idle 상태 → 자동 로드 (WebGPU 지원 기기만)
   useEffect(() => {
-    if (isOpen && isCurrentModelDownloaded && phase2Status === 'idle') {
+    if (isOpen && isCurrentModelDownloaded && phase2Status === 'idle' && isWebGpuSupported) {
       loadModel();
     }
-  }, [isOpen, isCurrentModelDownloaded, phase2Status, loadModel]);
+  }, [isOpen, isCurrentModelDownloaded, phase2Status, loadModel, isWebGpuSupported]);
 
   // 패널 열리거나 게시글 바뀔 때 한줄 코멘트 fetch
   useEffect(() => {
@@ -482,8 +481,21 @@ export default function AISidePanel({ isOpen, onClose, selectedPost, width, onWi
           </div>
         )}
 
+        {/* WebGPU 미지원 안내 (모바일 등) */}
+        {!isWebGpuSupported && (
+          <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800 flex-shrink-0">
+            <div className="text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 rounded-xl p-3 flex gap-2">
+              <span className="flex-shrink-0">💻</span>
+              <div>
+                <div className="font-medium text-slate-600 dark:text-slate-300 mb-0.5">PC 전용 기능</div>
+                <div>AI 어시스턴트는 WebGPU가 필요합니다. 데스크탑 Chrome 또는 Edge에서 이용해 주세요.</div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* 모델 로드 / 다운로드 상태 */}
-        {phase2Status === 'idle' && (
+        {isWebGpuSupported && phase2Status === 'idle' && (
           <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800 flex-shrink-0">
             <button
               onClick={loadModel}
@@ -504,7 +516,7 @@ export default function AISidePanel({ isOpen, onClose, selectedPost, width, onWi
           </div>
         )}
 
-        {phase2Status === 'downloading' && (
+        {isWebGpuSupported && phase2Status === 'downloading' && (
           <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800 space-y-1.5 flex-shrink-0">
             <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400">
               <span className="truncate">{phase2ProgressMessage || '다운로드 중...'}</span>
@@ -517,7 +529,7 @@ export default function AISidePanel({ isOpen, onClose, selectedPost, width, onWi
           </div>
         )}
 
-        {phase2Status === 'error' && (
+        {isWebGpuSupported && phase2Status === 'error' && (
           <div className="px-4 py-2 border-b border-slate-100 dark:border-slate-800 flex-shrink-0">
             <div className="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-lg p-2">
               ❌ {phase2Error}
