@@ -29,70 +29,62 @@ export function useClassifier(): UseClassifierReturn {
   } = useLlmStore();
 
   // Worker 초기화
-  // 문제: Next.js dev 모드에서 new Worker(url)이 503을 반환 (Sec-Fetch-Dest: worker 요청만)
-  // 해결: fetch() → Blob URL로 Worker 생성 (fetch는 200 반환)
-  // URL 획득: webpack 런타임(__webpack_require__)에서 컴파일된 청크 URL 계산
+  // dev 모드: Next.js dev 서버가 Sec-Fetch-Dest:worker 요청에 503을 반환
+  //   → fetch() → Blob URL로 우회
+  // production: new Worker(url) 직접 사용 (503 문제 없음)
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
     let worker: Worker | null = null;
     let blobUrl: string | null = null;
 
-    // webpack 런타임에서 컴파일된 worker 청크 URL을 계산
-    // __webpack_require__는 webpack 모듈 컨텍스트 내에서 접근 가능
-    // 청크 ID는 Next.js의 파일경로 기반 네이밍 규칙에서 유래
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const wr: any = (globalThis as any).__webpack_require__ ?? null;
-    const chunkId = '_app-pages-browser_src_features_llm_llm_worker_ts';
-    const workerChunkUrl = wr?.p !== undefined
-      ? new URL(wr.p + wr.u(chunkId), wr.b).href
-      : null;
+    const workerUrl = new URL('./llm.worker.ts', import.meta.url);
 
-    if (!workerChunkUrl) {
-      setPhase1Status('error');
-      setPhase1Error('Worker URL 계산 실패 (webpack 컨텍스트 없음)');
-      return;
+    function attachHandlers(w: Worker) {
+      w.onmessage = (e: MessageEvent) => {
+        const { type, payload } = e.data as { type: string; payload: Record<string, unknown> };
+        if (type === 'progress') {
+          setPhase1Progress(Number(payload.progress ?? 0));
+          setPhase1Status('downloading');
+        }
+        if (type === 'loaded') {
+          setPhase1Status('ready');
+          setPhase1Progress(100);
+        }
+        if (type === 'error') {
+          setPhase1Status('error');
+          setPhase1Error(String(payload.message ?? '알 수 없는 오류'));
+        }
+      };
+      w.onerror = (err) => {
+        setPhase1Status('error');
+        setPhase1Error(err.message || 'Worker 초기화 실패');
+      };
+      workerRef.current = w;
     }
 
-    // fetch() → Blob URL Worker (new Worker(url)의 503 문제 우회)
-    fetch(workerChunkUrl)
-      .then((res) => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.text();
-      })
-      .then((code) => {
-        const blob = new Blob([code], { type: 'text/javascript' });
-        blobUrl = URL.createObjectURL(blob);
-        worker = new Worker(blobUrl);
-
-        worker.onmessage = (e: MessageEvent) => {
-          const { type, payload } = e.data as { type: string; payload: Record<string, unknown> };
-
-          if (type === 'progress') {
-            setPhase1Progress(Number(payload.progress ?? 0));
-            setPhase1Status('downloading');
-          }
-          if (type === 'loaded') {
-            setPhase1Status('ready');
-            setPhase1Progress(100);
-          }
-          if (type === 'error') {
-            setPhase1Status('error');
-            setPhase1Error(String(payload.message ?? '알 수 없는 오류'));
-          }
-        };
-
-        worker.onerror = (err) => {
+    if (process.env.NODE_ENV === 'development') {
+      // dev: fetch → Blob URL (new Worker(url) 503 우회)
+      fetch(workerUrl.href)
+        .then((res) => {
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          return res.text();
+        })
+        .then((code) => {
+          const blob = new Blob([code], { type: 'text/javascript' });
+          blobUrl = URL.createObjectURL(blob);
+          worker = new Worker(blobUrl);
+          attachHandlers(worker);
+        })
+        .catch((err) => {
           setPhase1Status('error');
-          setPhase1Error(err.message || 'Worker 초기화 실패');
-        };
-
-        workerRef.current = worker;
-      })
-      .catch((err) => {
-        setPhase1Status('error');
-        setPhase1Error(`Worker 스크립트 로드 실패: ${err.message}`);
-      });
+          setPhase1Error(`Worker 로드 실패: ${err.message}`);
+        });
+    } else {
+      // production: 직접 생성
+      worker = new Worker(workerUrl, { type: 'module' });
+      attachHandlers(worker);
+    }
 
     return () => {
       worker?.terminate();
