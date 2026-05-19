@@ -227,8 +227,15 @@ export default function AISidePanel({ isOpen, onClose, selectedPost, width, onWi
       if (cmtRes) {
         const cmtJson = await cmtRes.json();
         const list = cmtJson.result?.commentList ?? [];
+        const GREETING_PATTERN = /^(감사합니다|고맙습니다|잘\s*봤|좋은\s*글|잘\s*읽|ㅎ{2,}|ㄷ{2,}|좋아요|응원|화이팅|감사|잘봤|잘읽|수고|👍|😊|👏|🙏)/i;
         const commentLines = list
           .filter((c: { replyLevel: number }) => c.replyLevel === 1)
+          .filter((c: { contents: string }) => {
+            const raw = stripHtmlTags(c.contents).trim();
+            if (raw.length < 10) return false;
+            if (GREETING_PATTERN.test(raw)) return false;
+            return true;
+          })
           .map((c: { userName?: string; contents: string }) => {
             const rawContent = stripHtmlTags(c.contents);
             const trimmed = rawContent.length > 150 ? rawContent.slice(0, 150) + '…' : rawContent;
@@ -259,7 +266,9 @@ export default function AISidePanel({ isOpen, onClose, selectedPost, width, onWi
 - URL·링크·참조 출처를 절대 생성하지 마세요. 본문에 없는 링크는 존재하지 않습니다.
 - "메르님은 ...을 바탕으로 답변합니다" 같은 메타 설명 텍스트 금지. 바로 내용만 작성.
 - 같은 내용을 반복하지 마세요. 각 정보는 한 번만 언급.
-- 한국어, "~입니다/~합니다" 어미 일관 사용.`;
+- 한국어, "~입니다/~합니다" 어미 일관 사용.
+- 서론 없이 바로 핵심 내용부터 시작하세요. "이 글은...", "이 게시글에서는..." 같은 도입부 금지.
+- 본문 내용을 언급할 때 "이 글에서는 ~", "메르님은 ~" 형태로 출처를 명시하세요.`;
 
       let systemPrompt: string;
       if (resolved === 'post') {
@@ -285,11 +294,11 @@ export default function AISidePanel({ isOpen, onClose, selectedPost, width, onWi
 - [메르의 코멘트]는 게시글 작성자의 후기입니다. [독자 댓글]과 혼동하지 마세요.
 - 답변은 반드시 아래 두 섹션으로만 구성하세요 (다른 섹션 추가 금지):
   ### 📄 본문 기반
-  [본문]과 [메르의 코멘트]에서 찾은 내용만 작성.
+  [본문]과 [메르의 코멘트]에서 찾은 내용을 충실하게 작성. 핵심 논점과 근거를 구체적으로 서술.
   ### 💬 댓글 반응
-  [독자 댓글]에서 찾은 내용만 작성. 관련 댓글이 없으면 "관련 댓글 없음" 한 줄로 끝내세요.
+  [독자 댓글]에서 의미 있는 반응 3~5개만 요약. 단순 인사·감사 댓글은 제외. 관련 댓글이 없으면 "관련 댓글 없음" 한 줄로 끝내세요.
+- [📄 본문 기반] 섹션이 핵심이며, [💬 댓글 반응]보다 충실하고 길게 작성하세요.
 - 각 섹션은 해당 소스에만 근거하세요. 두 섹션 사이 내용 중복 절대 금지.
-- 요약 요청 시 [📄 본문 기반] 위주로 작성하고, [💬 댓글 반응]은 2~3줄로 간결하게.
 - 요약 요청 시 [📄 본문 기반] 마지막에 **[메르의 코멘트]** 원문을 그대로 인용.
 - 마크다운(### 섹션 헤더, **굵게**, - 목록) 적극 활용.${COMMON_RULES}`;
       }
@@ -303,26 +312,35 @@ export default function AISidePanel({ isOpen, onClose, selectedPost, width, onWi
         userPrompt = `[게시글 제목]\n${selectedPost.title}\n\n[본문]\n${postBody || '(본문을 가져오지 못했습니다)'}\n\n[메르의 코멘트 (작성자 후기, 독자 댓글 아님)]\n${oneLiner || '(없음)'}\n\n[독자 댓글 ${commentCount}개]\n${commentsText || '(댓글 없음)'}\n\n[요청]\n${finalPrompt}`;
       }
 
-      // 2-stage only for post context
+      // 2-stage pipeline for post context
+      // 짧은 글(2000자 이하)은 Stage 1 스킵 → 전체 본문 직접 전달 (추출 손실 방지)
+      // 긴 글은 Stage 1 LLM 추출 유지
+      const STAGE1_THRESHOLD = 2000;
       let finalUserPrompt = userPrompt;
       if ((resolved === 'post' || resolved === 'all') && postBody) {
-        // Stage 1: extract relevant passages
-        setGeneratingStage('analyzing');
-        const stage1System = `주어진 [본문]에서 [질문]에 직접 답할 수 있는 문장을 2~3개 그대로 인용하세요. 인용문만 출력하고 설명은 쓰지 마세요. 관련 내용이 없으면 "없음"이라고만 쓰세요.`;
-        const stage1Prompt = `[본문]\n${postBody}\n\n[메르의 코멘트 (본문의 일부로 취급)]\n${oneLiner || ''}\n\n[질문]\n${finalPrompt}`;
-        let relevantPassages = '';
-        await generate(stage1System, stage1Prompt, (chunk) => {
-          relevantPassages += chunk;
-        }, { temperature: 0.1, maxTokens: 200 });
+        const needsStage1 = postBody.length > STAGE1_THRESHOLD;
+        if (needsStage1) {
+          // Stage 1: extract relevant passages
+          setGeneratingStage('analyzing');
+          // all 모드: 본문 섹션 충실도를 높이기 위해 더 많은 구절 추출
+          const stage1System = resolved === 'all'
+            ? `주어진 [본문]에서 [질문]에 관련된 핵심 문장을 5개 이하로 그대로 인용하세요. 직접 관련된 문장뿐 아니라 배경·맥락이 되는 문장도 포함하세요. 인용문만 출력하고 설명은 쓰지 마세요. 관련 내용이 없으면 "없음"이라고만 쓰세요.`
+            : `주어진 [본문]에서 [질문]에 직접 답할 수 있는 문장을 2~3개 그대로 인용하세요. 인용문만 출력하고 설명은 쓰지 마세요. 관련 내용이 없으면 "없음"이라고만 쓰세요.`;
+          const stage1Prompt = `[본문]\n${postBody}\n\n[메르의 코멘트 (본문의 일부로 취급)]\n${oneLiner || ''}\n\n[질문]\n${finalPrompt}`;
+          let relevantPassages = '';
+          await generate(stage1System, stage1Prompt, (chunk) => {
+            relevantPassages += chunk;
+          }, { temperature: 0.1, maxTokens: resolved === 'all' ? 400 : 200 });
 
-        // Use extracted passages if valid, else fallback to full postBody
-        const extracted = relevantPassages.trim();
-        const isValid = extracted.length > 15 && !extracted.startsWith('없음') && !extracted.startsWith('관련');
-        if (isValid) {
-          if (resolved === 'post') {
-            finalUserPrompt = `[게시글 제목]\n${selectedPost.title}\n\n[본문 (관련 구절)]\n${extracted}\n\n[메르의 코멘트 (작성자 후기)]\n${oneLiner || '(없음)'}\n\n[요청]\n${finalPrompt}`;
-          } else {
-            finalUserPrompt = `[게시글 제목]\n${selectedPost.title}\n\n[본문 (관련 구절)]\n${extracted}\n\n[메르의 코멘트 (작성자 후기, 독자 댓글 아님)]\n${oneLiner || '(없음)'}\n\n[독자 댓글 ${commentCount}개]\n${commentsText || '(댓글 없음)'}\n\n[요청]\n${finalPrompt}`;
+          // Use extracted passages if valid, else fallback to full postBody
+          const extracted = relevantPassages.trim();
+          const isValid = extracted.length > 15 && !extracted.startsWith('없음') && !extracted.startsWith('관련');
+          if (isValid) {
+            if (resolved === 'post') {
+              finalUserPrompt = `[게시글 제목]\n${selectedPost.title}\n\n[본문 (관련 구절)]\n${extracted}\n\n[메르의 코멘트 (작성자 후기)]\n${oneLiner || '(없음)'}\n\n[요청]\n${finalPrompt}`;
+            } else {
+              finalUserPrompt = `[게시글 제목]\n${selectedPost.title}\n\n[본문 (관련 구절)]\n${extracted}\n\n[메르의 코멘트 (작성자 후기, 독자 댓글 아님)]\n${oneLiner || '(없음)'}\n\n[독자 댓글 ${commentCount}개]\n${commentsText || '(댓글 없음)'}\n\n[요청]\n${finalPrompt}`;
+            }
           }
         }
         setGeneratingStage('answering');
