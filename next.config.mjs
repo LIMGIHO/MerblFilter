@@ -20,23 +20,18 @@ const nextConfig = {
         source: '/posts',
         headers: [
           { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
-          { key: 'Cross-Origin-Embedder-Policy', value: 'require-corp' },
+          { key: 'Cross-Origin-Embedder-Policy', value: 'credentialless' },
         ],
       },
     ];
   },
 
-  webpack: (config, { isServer }) => {
+  webpack: (config) => {
     // Node polyfill 제거
     config.resolve.fallback = { ...config.resolve.fallback, fs: false, path: false };
 
-    // Web Worker 지원: .worker.ts 파일을 worker-loader로 처리
-    if (!isServer) {
-      config.module.rules.push({
-        test: /\.worker\.(ts|js)$/,
-        use: [{ loader: 'worker-loader', options: { inline: 'no-fallback' } }],
-      });
-    }
+    // Web Worker는 webpack 5 네이티브 방식(new URL('./llm.worker.ts', import.meta.url))으로 처리
+    // worker-loader 제거 — 두 방식 동시 사용 시 "missing bootstrap script" 오류 발생
 
     return config;
   },
