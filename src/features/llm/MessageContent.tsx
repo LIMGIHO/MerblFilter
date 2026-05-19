@@ -147,8 +147,16 @@ function parseBlocks(text: string): Block[] {
   return blocks;
 }
 
+/** LLM 출력에서 HTML 태그 잔재 제거 */
+function sanitizeLlmOutput(text: string): string {
+  return text
+    .replace(/<br\s*\/?>/gi, '\n')   // <br> → 줄바꿈
+    .replace(/<\/br>/gi, '\n')       // </br> → 줄바꿈
+    .replace(/<[^>]+>/g, '');        // 나머지 HTML 태그 제거
+}
+
 export default function MessageContent({ content }: { content: string }) {
-  const blocks = parseBlocks(content);
+  const blocks = parseBlocks(sanitizeLlmOutput(content));
 
   return (
     <div className="space-y-1.5">

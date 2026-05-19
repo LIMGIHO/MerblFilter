@@ -268,7 +268,8 @@ export default function AISidePanel({ isOpen, onClose, selectedPost, width, onWi
 - 같은 내용을 반복하지 마세요. 각 정보는 한 번만 언급.
 - 한국어, "~입니다/~합니다" 어미 일관 사용.
 - 서론 없이 바로 핵심 내용부터 시작하세요. "이 글은...", "이 게시글에서는..." 같은 도입부 금지.
-- 본문 내용을 언급할 때 "이 글에서는 ~", "메르님은 ~" 형태로 출처를 명시하세요.`;
+- 본문 내용을 언급할 때 "이 글에서는 ~", "메르님은 ~" 형태로 출처를 명시하세요.
+- <br>, </br>, <p> 등 HTML 태그를 절대 출력하지 마세요. 줄바꿈은 빈 줄로만 표현하세요.`;
 
       let systemPrompt: string;
       if (resolved === 'post') {
