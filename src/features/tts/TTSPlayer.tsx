@@ -129,7 +129,7 @@ export default function TTSPlayer() {
   }
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 flex flex-col items-center pointer-events-none">
+    <div className="fixed bottom-0 left-0 right-0 z-[49] flex flex-col items-center pointer-events-none">
       {/* 플레이리스트 드로어 */}
       {drawerOpen && (
         <div className="pointer-events-auto w-full max-w-xl mx-auto mb-1 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-2xl overflow-hidden">

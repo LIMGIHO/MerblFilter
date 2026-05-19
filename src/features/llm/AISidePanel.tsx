@@ -80,7 +80,7 @@ export default function AISidePanel({ isOpen, onClose, selectedPost, width, onWi
   const [isWebGpuSupported, setIsWebGpuSupported] = useState(true);
   const [showGpuInfo, setShowGpuInfo] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const { add: addToPlaylist, remove: removeFromPlaylist, has: isInPlaylist } = useTtsPlaylistStore();
+  const { add: addToPlaylist, remove: removeFromPlaylist, has: isInPlaylist, items: ttsItems } = useTtsPlaylistStore();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const answerRef = useRef('');
   const currentMsgIdRef = useRef('');
@@ -370,7 +370,9 @@ export default function AISidePanel({ isOpen, onClose, selectedPost, width, onWi
       {/* 사이드 패널 */}
       <div
         className="fixed top-0 right-0 h-screen bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-700 shadow-2xl z-50 flex flex-col animate-slide-in-right"
-        style={isDesktop ? { width: `${width}px` } : { width: '100%' }}
+        style={isDesktop
+          ? { width: `${width}px`, paddingBottom: ttsItems.length > 0 ? '80px' : 0 }
+          : { width: '100%', paddingBottom: ttsItems.length > 0 ? '80px' : 0 }}
       >
         {/* 리사이즈 핸들 (데스크탑) */}
         {isDesktop && (
