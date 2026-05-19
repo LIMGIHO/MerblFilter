@@ -60,21 +60,23 @@ export default function LocalLLMPanel({ comments, onLabelsUpdate, labelMap, onHi
       {/* 토글 버튼 */}
       <button
         onClick={() => setIsOpen((v) => !v)}
-        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all
-          ${phase1Enabled
-            ? 'border-violet-500 bg-violet-50 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300'
-            : 'border-gray-300 bg-white text-gray-600 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-600'
-          }`}
+        className="text-xs px-2.5 py-1 rounded-full transition flex items-center gap-1.5 border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:border-teal-400 hover:text-teal-600 dark:hover:text-teal-400"
       >
-        🤖 AI 분류
+        <span>✦ AI 분류</span>
         {phase1Status === 'downloading' && (
-          <span className="text-xs animate-pulse">({phase1Progress}%)</span>
+          <span className="text-teal-500 animate-pulse">{phase1Progress}%</span>
         )}
         {phase1Status === 'running' && (
-          <span className="spinner" />
+          <span className="inline-block w-3 h-3 border border-teal-400 border-t-transparent rounded-full animate-spin" />
+        )}
+        {phase1Status === 'error' && (
+          <span className="w-1.5 h-1.5 rounded-full bg-red-400 inline-block" />
+        )}
+        {phase1Status === 'ready' && (
+          <span className="w-1.5 h-1.5 rounded-full bg-teal-400 inline-block" />
         )}
         {Object.keys(labelMap).length > 0 && (
-          <span className="text-xs bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-300 px-1.5 py-0.5 rounded">
+          <span className="bg-teal-100 dark:bg-teal-900/40 text-teal-600 dark:text-teal-400 px-1.5 rounded-full text-[10px]">
             {Object.keys(labelMap).length}
           </span>
         )}
@@ -82,24 +84,24 @@ export default function LocalLLMPanel({ comments, onLabelsUpdate, labelMap, onHi
 
       {/* 패널 */}
       {isOpen && (
-        <div className="absolute right-0 top-10 z-50 w-72 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl p-4 space-y-3">
+        <div className="absolute right-0 top-9 z-50 w-72 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl p-3.5 space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="font-semibold text-sm text-gray-800 dark:text-gray-100">🤖 AI 댓글 분류</h3>
-            {/* Phase 1 토글 */}
+            <h3 className="font-semibold text-xs text-slate-700 dark:text-slate-200">✦ AI 댓글 분류</h3>
             <label className="flex items-center gap-2 cursor-pointer">
               <div
                 onClick={() => handleToggle(!phase1Enabled)}
-                className={`relative w-9 h-5 rounded-full transition-colors ${phase1Enabled ? 'bg-violet-500' : 'bg-gray-300 dark:bg-gray-600'}`}
+                className={`relative w-8 h-4.5 rounded-full transition-colors ${phase1Enabled ? 'bg-teal-500' : 'bg-slate-300 dark:bg-slate-600'}`}
+                style={{ height: '18px', width: '32px' }}
               >
-                <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${phase1Enabled ? 'translate-x-4' : ''}`} />
+                <span className={`absolute top-0.5 left-0.5 w-3.5 h-3.5 bg-white rounded-full shadow transition-transform ${phase1Enabled ? 'translate-x-3.5' : ''}`} />
               </div>
-              <span className="text-xs text-gray-600 dark:text-gray-400">활성화</span>
+              <span className="text-xs text-slate-500 dark:text-slate-400">활성화</span>
             </label>
           </div>
 
           {/* 모델 정보 */}
-          <div className="text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 rounded-lg p-2">
-            <div className="font-medium">bert-base-multilingual-uncased</div>
+          <div className="text-[10px] text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-800 rounded-lg px-2.5 py-1.5">
+            <div className="font-medium text-slate-500 dark:text-slate-400">bert-base-multilingual-uncased</div>
             <div>다국어 감성 분석 (~170MB, IndexedDB 캐시)</div>
           </div>
 
@@ -109,48 +111,46 @@ export default function LocalLLMPanel({ comments, onLabelsUpdate, labelMap, onHi
               {phase1Status === 'idle' && (
                 <button
                   onClick={loadModel}
-                  className="w-full py-1.5 text-sm bg-violet-500 text-white rounded-lg hover:bg-violet-600 transition"
+                  className="w-full py-1.5 text-xs bg-teal-500 text-white rounded-xl hover:bg-teal-600 transition"
                 >
                   모델 다운로드 시작
                 </button>
               )}
 
               {phase1Status === 'downloading' && (
-                <div className="space-y-1">
-                  <div className="flex justify-between text-xs text-gray-600 dark:text-gray-400">
+                <div className="space-y-1.5">
+                  <div className="flex justify-between text-[10px] text-slate-500 dark:text-slate-400">
                     <span>다운로드 중...</span>
                     <span>{phase1Progress}%</span>
                   </div>
-                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                    <div
-                      className="bg-violet-500 h-2 rounded-full transition-all duration-300"
-                      style={{ width: `${phase1Progress}%` }}
-                    />
+                  <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-1.5">
+                    <div className="bg-teal-500 h-1.5 rounded-full transition-all" style={{ width: `${phase1Progress}%` }} />
                   </div>
-                  <div className="text-xs text-gray-400">첫 다운로드 후 IndexedDB에 캐시됩니다</div>
+                  <div className="text-[10px] text-teal-600 dark:text-teal-400">⚡ 처음 1회만 다운로드됩니다</div>
                 </div>
               )}
 
               {phase1Status === 'ready' && (
                 <button
                   onClick={handleClassify}
-                  className="w-full py-1.5 text-sm bg-violet-500 text-white rounded-lg hover:bg-violet-600 transition flex items-center justify-center gap-2"
+                  className="w-full py-1.5 text-xs bg-teal-500 text-white rounded-xl hover:bg-teal-600 transition flex items-center justify-center gap-1.5"
                 >
                   <span>⚡ 댓글 분류 실행</span>
-                  <span className="text-xs opacity-80">({comments.filter(c => c.replyLevel === 1).length}개)</span>
+                  <span className="opacity-80">({comments.filter(c => c.replyLevel === 1).length}개)</span>
                 </button>
               )}
 
               {phase1Status === 'running' && (
-                <div className="text-center text-sm text-violet-600 dark:text-violet-400 flex items-center justify-center gap-2">
-                  <span className="spinner" /> 분류 중...
+                <div className="text-center text-xs text-teal-600 dark:text-teal-400 flex items-center justify-center gap-2">
+                  <span className="inline-block w-3 h-3 border-2 border-teal-400 border-t-transparent rounded-full animate-spin" />
+                  분류 중...
                 </div>
               )}
 
               {phase1Status === 'error' && (
-                <div className="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-lg p-2">
+                <div className="text-[10px] text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-xl p-2.5">
                   ❌ {phase1Error}
-                  <button onClick={loadModel} className="block mt-1 underline">재시도</button>
+                  <button onClick={loadModel} className="block mt-1.5 text-red-500 hover:text-red-700 underline">재시도</button>
                 </div>
               )}
             </div>
