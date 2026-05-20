@@ -169,9 +169,26 @@ function parseBlocks(text: string): Block[] {
   return blocks;
 }
 
+/**
+ * CJK 한자·일본어 문자 제거 (한글은 보존)
+ * 소형 Qwen 모델이 中文/日本語 혼입하는 문제 방어
+ * 한글(U+AC00–U+D7AF, U+1100–U+11FF, U+3130–U+318F)은 제거 안 함
+ */
+function stripCjk(text: string): string {
+  return text
+    // 히라가나 (U+3040–U+309F)
+    .replace(/[぀-ゟ]/g, '')
+    // 가타카나 (U+30A0–U+30FF, U+31F0–U+31FF)
+    .replace(/[゠-ヿㇰ-ㇿ]/g, '')
+    // CJK 통합 한자 (U+4E00–U+9FFF) + Extension A (U+3400–U+4DBF)
+    .replace(/[㐀-䶿一-鿿]/g, '')
+    // CJK 호환 한자 (U+F900–U+FAFF)
+    .replace(/[豈-﫿]/g, '');
+}
+
 /** LLM 출력에서 HTML 태그 잔재 및 메타텍스트 제거 */
 function sanitizeLlmOutput(text: string): string {
-  return text
+  return stripCjk(text)
     .replace(/<br\s*\/?>/gi, '\n')          // <br> → 줄바꿈
     .replace(/<\/br>/gi, '\n')             // </br> → 줄바꿈
     .replace(/<[^>]+>/g, '')               // 나머지 HTML 태그 제거
