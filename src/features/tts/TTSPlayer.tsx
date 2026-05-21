@@ -129,10 +129,10 @@ export default function TTSPlayer() {
   }
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-[49] flex flex-col items-start pointer-events-none">
+    <div className="fixed bottom-0 left-0 z-[49] flex flex-col items-start pointer-events-none">
       {/* 플레이리스트 드로어 */}
       {drawerOpen && (
-        <div className="pointer-events-auto w-full max-w-xl ml-2 sm:ml-4 mb-1 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-2xl overflow-hidden">
+        <div className="pointer-events-auto w-[min(448px,calc(100vw-24px))] ml-3 mb-1 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-2xl overflow-hidden">
           <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-100 dark:border-slate-800">
             <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
               🎵 재생 목록 ({items.length}개)
@@ -185,7 +185,7 @@ export default function TTSPlayer() {
       )}
 
       {/* 플레이어 바 */}
-      <div className="pointer-events-auto w-full max-w-xl ml-2 sm:ml-4 mb-3 px-3">
+      <div className="pointer-events-auto w-[min(448px,calc(100vw-24px))] ml-3 mb-3 px-3">
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl px-4 pt-2.5 pb-2 flex flex-col gap-1.5">
           {/* 상단: 트랙 정보 + 컨트롤 + 속도 */}
           <div className="flex items-center gap-3">
@@ -240,23 +240,31 @@ export default function TTSPlayer() {
           </div>
 
           {/* 하단: 재생바 */}
-          {(status === 'playing' || status === 'paused') && duration > 0 && (
+          {(status === 'playing' || status === 'paused') && (
             <div className="flex items-center gap-2">
               <span className="text-[10px] text-slate-400 dark:text-slate-500 w-8 text-right flex-shrink-0">
                 {formatTime(currentTime)}
               </span>
-              <input
-                type="range"
-                min={0}
-                max={duration}
-                step={0.5}
-                value={currentTime}
-                onChange={handleSeek}
-                className="flex-1 h-1.5 accent-teal-500 cursor-pointer"
-              />
-              <span className="text-[10px] text-slate-400 dark:text-slate-500 w-8 flex-shrink-0">
-                {formatTime(duration)}
-              </span>
+              {duration > 0 ? (
+                <>
+                  <input
+                    type="range"
+                    min={0}
+                    max={duration}
+                    step={0.5}
+                    value={currentTime}
+                    onChange={handleSeek}
+                    className="flex-1 h-1.5 accent-teal-500 cursor-pointer"
+                  />
+                  <span className="text-[10px] text-slate-400 dark:text-slate-500 w-8 flex-shrink-0">
+                    {formatTime(duration)}
+                  </span>
+                </>
+              ) : (
+                <div className="flex-1 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                  <div className="h-full w-2/5 bg-teal-400 rounded-full animate-pulse" />
+                </div>
+              )}
             </div>
           )}
         </div>

@@ -10,6 +10,11 @@ env.allowLocalModels = false;
 // CDN이 COEP credentialless Worker 환경에서 막히는 문제 방지
 env.backends.onnx.wasm.wasmPaths = '/wasm/';
 
+// 멀티스레드 비활성화: ort-wasm-threaded.worker.js 파일이 없으면
+// ONNX Runtime이 Worker 초기화를 무한 대기함 → numThreads=1로 단일스레드 강제
+// BERT 감성분류 정도는 단일스레드로도 충분히 동작
+(env.backends.onnx.wasm as Record<string, unknown>).numThreads = 1;
+
 type LlmLabel = 'spam' | 'promo' | 'negative' | 'neutral' | 'positive';
 
 // HTML 태그 제거 (댓글 contents에 <br> 등 포함될 수 있음)

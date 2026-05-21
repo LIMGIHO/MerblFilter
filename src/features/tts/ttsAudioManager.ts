@@ -156,7 +156,11 @@ class TTSAudioManager {
       this.notify();
     });
     audio.addEventListener('durationchange', () => {
-      if (isFinite(audio.duration)) { this._duration = audio.duration; this.notify(); }
+      // MediaSource 스트리밍 중엔 Infinity → 스킵. endOfStream() 후엔 유한값으로 업데이트됨
+      if (isFinite(audio.duration) && audio.duration > 0) {
+        this._duration = audio.duration;
+        this.notify();
+      }
     });
     audio.onended = () => {
       if (token !== this.cancelToken) return;
