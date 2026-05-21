@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { BlogComment } from '@/domain/comment/types';
 import { isOwnerComment } from '@/domain/filter/filterEngine';
+import { useFilterStore } from '@/store/filterStore';
 import dynamic from 'next/dynamic';
 
 const LocalLLMPanel = dynamic(() => import('@/features/llm/LocalLLMPanel'), { ssr: false });
@@ -66,7 +67,19 @@ export default function CommentsPanel({
   const [hiddenLabels, setHiddenLabels] = useState<Set<LlmLabel>>(new Set());
   const [isResizing, setIsResizing] = useState(false);
   const [isDesktop, setIsDesktop] = useState(false);
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const [showBlockedList, setShowBlockedList] = useState(false);
   const prevPostIdRef = useRef<string>('');
+
+  const { settings, addBlockedUser, removeBlockedUser } = useFilterStore();
+
+  function handleBlock(comment: BlogComment) {
+    const target = comment.profileUserId || comment.userName;
+    if (!target || isOwnerComment(comment)) return;
+    addBlockedUser(target);
+    setToastMsg(`"${target}" 차단됨`);
+    setTimeout(() => setToastMsg(null), 2500);
+  }
 
   useEffect(() => {
     const mq = window.matchMedia('(min-width: 768px)');
@@ -149,7 +162,21 @@ export default function CommentsPanel({
     isOwnerComment(c) || c.replies.some(isOwnerComment)
   );
   const baseComments = (hiddenLabels.size > 0) ? structuredComments : (showAllComments ? structuredComments : ownerRelatedComments);
+
+  // 차단 사용자 필터 (주인장은 차단 불가)
+  function isBlockedUser(c: BlogComment): boolean {
+    if (isOwnerComment(c) || settings.blockedUsers.length === 0) return false;
+    const name = c.userName ?? c.maskedUserName ?? '';
+    const id = c.profileUserId ?? '';
+    return settings.blockedUsers.some((blocked) =>
+      settings.blockedUsersPartialMatch
+        ? name.includes(blocked) || id.includes(blocked)
+        : name === blocked || id === blocked
+    );
+  }
+
   const commentsToShow = baseComments.filter((c) => {
+    if (isBlockedUser(c)) return false;
     if (hiddenLabels.size === 0) return true;
     const label = llmLabelMap[c.commentNo];
     return !label || !hiddenLabels.has(label);
@@ -227,6 +254,16 @@ export default function CommentsPanel({
               전체
               <span className="ml-1 opacity-70">({comments.length})</span>
             </button>
+            {/* 차단 목록 토글 */}
+            {settings.blockedUsers.length > 0 && (
+              <button
+                onClick={() => setShowBlockedList(v => !v)}
+                className={`text-xs px-2 py-1 rounded-full transition ${showBlockedList ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-500'}`}
+                title="차단 목록 관리"
+              >
+                🚫 {settings.blockedUsers.length}
+              </button>
+            )}
           </div>
           <LocalLLMPanel
             comments={comments}
@@ -236,10 +273,38 @@ export default function CommentsPanel({
           />
         </div>
 
+        {/* 차단 목록 관리 패널 */}
+        {showBlockedList && settings.blockedUsers.length > 0 && (
+          <div className="px-4 py-2 border-b border-red-100 dark:border-red-900/30 bg-red-50/50 dark:bg-red-900/10 flex-shrink-0">
+            <div className="text-[10px] text-red-500 dark:text-red-400 font-semibold mb-1.5">차단된 사용자</div>
+            <div className="flex flex-wrap gap-1">
+              {settings.blockedUsers.map((user) => (
+                <span key={user} className="inline-flex items-center gap-1 text-[10px] bg-white dark:bg-slate-800 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-2 py-0.5 rounded-full">
+                  {user}
+                  <button
+                    onClick={() => removeBlockedUser(user)}
+                    className="ml-0.5 text-red-400 hover:text-red-600 dark:hover:text-red-300 leading-none"
+                    title="차단 해제"
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* 마지막 갱신 시간 */}
         {lastRefreshTime && (
           <div className="px-4 py-1 text-[10px] text-slate-400 dark:text-slate-600 flex-shrink-0">
             {formatDate(lastRefreshTime.toISOString())} 기준
+          </div>
+        )}
+
+        {/* 차단 토스트 */}
+        {toastMsg && (
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 bg-slate-800 dark:bg-slate-700 text-white text-xs px-3 py-1.5 rounded-full shadow-lg pointer-events-none">
+            {toastMsg}
           </div>
         )}
 
@@ -257,7 +322,7 @@ export default function CommentsPanel({
             commentsToShow.map((comment, idx) => (
               <div key={idx} className="space-y-1.5">
                 {/* 부모 댓글 */}
-                <div className={`flex items-start gap-2 p-2.5 rounded-xl border text-sm
+                <div className={`group flex items-start gap-2 p-2.5 rounded-xl border text-sm
                   ${isOwnerComment(comment) ? 'bg-amber-50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-800' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700'}`}>
                   <ProfileImage imageUrl={comment.userProfileImage} isOwner={isOwnerComment(comment)} size="large" />
                   <div className="flex-1 min-w-0">
@@ -267,6 +332,16 @@ export default function CommentsPanel({
                       </span>
                       {isOwnerComment(comment) && (
                         <span className="text-[9px] bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-200 px-1.5 py-0.5 rounded">👑 메르님</span>
+                      )}
+                      {/* 차단 버튼 (hover 시 노출, 주인장 제외) */}
+                      {!isOwnerComment(comment) && (
+                        <button
+                          onClick={() => handleBlock(comment)}
+                          className="opacity-0 group-hover:opacity-100 text-[9px] text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 px-1.5 py-0.5 rounded transition-all"
+                          title="이 사용자 차단"
+                        >
+                          차단
+                        </button>
                       )}
                       {comment.sympathyCount !== undefined && comment.sympathyCount > 0 && (
                         <span className="text-[9px] text-pink-500">👍 {comment.sympathyCount}</span>
@@ -281,7 +356,13 @@ export default function CommentsPanel({
                       </span>
                     </div>
                     {comment.isSecret ? (
-                      <p className="text-xs text-slate-400 italic">🔒 비밀 댓글</p>
+                      <div className="flex items-center gap-2 mt-1 px-2.5 py-2 rounded-lg bg-slate-100 dark:bg-slate-700/50 border border-dashed border-slate-300 dark:border-slate-600">
+                        <span className="text-base">🔒</span>
+                        <div>
+                          <p className="text-xs font-medium text-slate-500 dark:text-slate-400">비밀 댓글입니다</p>
+                          <p className="text-[10px] text-slate-400 dark:text-slate-500">작성자와 블로그 주인만 볼 수 있어요</p>
+                        </div>
+                      </div>
                     ) : (
                       <div
                         className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed break-words"
@@ -315,7 +396,10 @@ export default function CommentsPanel({
                             </span>
                           </div>
                           {reply.isSecret ? (
-                            <p className="text-xs text-slate-400 italic">🔒 비밀 댓글</p>
+                            <div className="flex items-center gap-1.5 mt-0.5 px-2 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700/50 border border-dashed border-slate-300 dark:border-slate-600">
+                              <span className="text-sm">🔒</span>
+                              <p className="text-[10px] text-slate-400 dark:text-slate-500">비밀 댓글 · 작성자와 블로그 주인만 볼 수 있어요</p>
+                            </div>
                           ) : (
                             <div
                               className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed break-words"
