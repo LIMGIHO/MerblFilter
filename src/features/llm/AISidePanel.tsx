@@ -77,7 +77,7 @@ export default function AISidePanel({ isOpen, onClose, selectedPost, width, onWi
   const [oneLiner, setOneLiner] = useState<string>('');
   const [isFetchingOneLiner, setIsFetchingOneLiner] = useState(false);
   const [gpuLabel, setGpuLabel] = useState<string | null>(null);
-  const [isWebGpuSupported, setIsWebGpuSupported] = useState(true);
+  const [isWebGpuSupported, setIsWebGpuSupported] = useState(false); // GPU 체크 전 모델 로드 방지 (모바일 크래시 방어)
   const [showGpuInfo, setShowGpuInfo] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const { add: addToPlaylist, remove: removeFromPlaylist, has: isInPlaylist, items: ttsItems } = useTtsPlaylistStore();
@@ -432,11 +432,11 @@ export default function AISidePanel({ isOpen, onClose, selectedPost, width, onWi
                       {gpuLabel}
                     </button>
                     {showGpuInfo && (
-                      <div className="absolute top-full left-0 mt-1.5 z-50 w-56 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-lg p-3 text-left">
+                      <div className="absolute top-full left-0 mt-1.5 z-50 w-64 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-lg p-3 text-left">
                         <div className="text-[11px] font-semibold text-slate-700 dark:text-slate-200 mb-2">
                           {gpuLabel}
                         </div>
-                        <ul className="space-y-1">
+                        <ul className="space-y-1 mb-3">
                           {[
                             '대화 내용 서버 전송 없음',
                             '프롬프트 저장 없음',
@@ -449,6 +449,22 @@ export default function AISidePanel({ isOpen, onClose, selectedPost, width, onWi
                             </li>
                           ))}
                         </ul>
+                        <div className="border-t border-slate-100 dark:border-slate-700 pt-2">
+                          <div className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 mb-1.5">기기별 지원 현황</div>
+                          <ul className="space-y-1">
+                            {[
+                              { label: 'Windows Chrome/Edge', status: '✅' },
+                              { label: 'macOS Chrome/Edge', status: '✅' },
+                              { label: 'Android Chrome', status: '⚠️ 일부' },
+                              { label: 'iPhone / iPad Safari', status: '❌ 미지원' },
+                            ].map(({ label, status }) => (
+                              <li key={label} className="flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400">
+                                <span>{label}</span>
+                                <span>{status}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
                       </div>
                     )}
                   </div>

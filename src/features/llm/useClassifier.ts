@@ -20,6 +20,8 @@ interface UseClassifierReturn {
 
 export function useClassifier(): UseClassifierReturn {
   const workerRef = useRef<Worker | null>(null);
+  const initWorkerRef = useRef<(() => void) | null>(null);
+  const retryCountRef = useRef(0);
   const {
     phase1ModelId,
     phase1Status,
@@ -29,19 +31,29 @@ export function useClassifier(): UseClassifierReturn {
   } = useLlmStore();
 
   // Worker 초기화
-  // dev 모드: Next.js dev 서버가 Sec-Fetch-Dest:worker 요청에 503을 반환
-  //   → fetch() → Blob URL로 우회
-  // production: new Worker(url) 직접 사용 (503 문제 없음)
+  // webpack 5 네이티브 패턴: new Worker(new URL(...)) 인라인으로 사용해야
+  // webpack이 worker 전용 번들을 생성함. 변수로 분리하면 static media 파일로
+  // 처리되어 bare import 구문이 번들 없이 Worker에 전달되는 SyntaxError 발생.
+  //
+  // Next.js dev 모드 주의: 레이지 컴파일로 인해 Worker 번들이 처음 요청 시
+  // 503을 반환할 수 있음. onerror에서 최대 5회 자동 재시도.
+  // 모든 재시도 실패 시 workerRef를 null로 설정 → loadModel 재호출 시 재초기화.
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    let worker: Worker | null = null;
-    let blobUrl: string | null = null;
+    let currentWorker: Worker | null = null;
+    const MAX_RETRIES = 5;
+    let cancelled = false;
 
-    const workerUrl = new URL('./llm.worker.ts', import.meta.url);
+    const initWorker = () => {
+      if (cancelled) return;
 
-    function attachHandlers(w: Worker) {
-      w.onmessage = (e: MessageEvent) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const worker = new Worker(new URL('./llm.worker.ts', import.meta.url));
+      currentWorker = worker;
+      workerRef.current = worker;
+
+      worker.onmessage = (e: MessageEvent) => {
         const { type, payload } = e.data as { type: string; payload: Record<string, unknown> };
         if (type === 'progress') {
           setPhase1Progress(Number(payload.progress ?? 0));
@@ -56,43 +68,39 @@ export function useClassifier(): UseClassifierReturn {
           setPhase1Error(String(payload.message ?? '알 수 없는 오류'));
         }
       };
-      w.onerror = (err) => {
+      worker.onerror = (err) => {
+        if (cancelled) return;
+        // dev 모드 레이지 컴파일 503 → 자동 재시도
+        if (retryCountRef.current < MAX_RETRIES) {
+          retryCountRef.current++;
+          setTimeout(initWorker, 500 * retryCountRef.current);
+          return;
+        }
+        // 모든 재시도 실패 → workerRef를 null로 표시해 loadModel에서 재초기화 가능하게 함
+        workerRef.current = null;
         setPhase1Status('error');
         setPhase1Error(err.message || 'Worker 초기화 실패');
       };
-      workerRef.current = w;
-    }
+    };
 
-    if (process.env.NODE_ENV === 'development') {
-      // dev: fetch → Blob URL (new Worker(url) 503 우회)
-      fetch(workerUrl.href)
-        .then((res) => {
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          return res.text();
-        })
-        .then((code) => {
-          const blob = new Blob([code], { type: 'text/javascript' });
-          blobUrl = URL.createObjectURL(blob);
-          worker = new Worker(blobUrl);
-          attachHandlers(worker);
-        })
-        .catch((err) => {
-          setPhase1Status('error');
-          setPhase1Error(`Worker 로드 실패: ${err.message}`);
-        });
-    } else {
-      // production: 직접 생성
-      worker = new Worker(workerUrl, { type: 'module' });
-      attachHandlers(worker);
-    }
+    // initWorker를 loadModel에서도 호출할 수 있도록 ref에 저장
+    initWorkerRef.current = initWorker;
+
+    initWorker();
 
     return () => {
-      worker?.terminate();
-      if (blobUrl) URL.revokeObjectURL(blobUrl);
+      cancelled = true;
+      initWorkerRef.current = null;
+      currentWorker?.terminate();
     };
   }, []);
 
   const loadModel = useCallback(() => {
+    // Worker가 null이면 재초기화 (dev 모드 503 후 사용자가 재시도 버튼 클릭 시)
+    if (!workerRef.current) {
+      retryCountRef.current = 0; // 사용자가 직접 재시도 → 재시도 카운트 초기화
+      initWorkerRef.current?.();
+    }
     if (!workerRef.current) return;
     setPhase1Status('downloading');
     setPhase1Progress(0);
