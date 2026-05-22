@@ -22,6 +22,8 @@ export function useClassifier(): UseClassifierReturn {
   const workerRef = useRef<Worker | null>(null);
   const initWorkerRef = useRef<(() => void) | null>(null);
   const retryCountRef = useRef(0);
+  // 'load' 요청이 pending 중인 modelId. onerror로 worker가 죽어도 재시도 후 자동 재전송.
+  const pendingLoadModelRef = useRef<string | null>(null);
   const {
     phase1ModelId,
     phase1Status,
@@ -35,9 +37,8 @@ export function useClassifier(): UseClassifierReturn {
   // webpack이 worker 전용 번들을 생성함. 변수로 분리하면 static media 파일로
   // 처리되어 bare import 구문이 번들 없이 Worker에 전달되는 SyntaxError 발생.
   //
-  // Next.js dev 모드 주의: 레이지 컴파일로 인해 Worker 번들이 처음 요청 시
-  // 503을 반환할 수 있음. onerror에서 최대 5회 자동 재시도.
-  // 모든 재시도 실패 시 workerRef를 null로 설정 → loadModel 재호출 시 재초기화.
+  // Next.js dev 모드: 레이지 컴파일로 Worker 번들이 첫 요청 시 503 반환 가능.
+  // onerror 즉시 workerRef=null → 재시도 성공 시 pendingLoad 자동 재전송.
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
@@ -60,32 +61,39 @@ export function useClassifier(): UseClassifierReturn {
           setPhase1Status('downloading');
         }
         if (type === 'loaded') {
+          pendingLoadModelRef.current = null; // 로드 완료 → pending 해제
           setPhase1Status('ready');
           setPhase1Progress(100);
         }
         if (type === 'error') {
+          pendingLoadModelRef.current = null;
           setPhase1Status('error');
           setPhase1Error(String(payload.message ?? '알 수 없는 오류'));
         }
       };
       worker.onerror = (err) => {
         if (cancelled) return;
-        // dev 모드 레이지 컴파일 503 → 자동 재시도
+        // onerror 즉시 null: loadModel이 죽은 worker에 메시지 보내는 것을 막음
+        workerRef.current = null;
+
         if (retryCountRef.current < MAX_RETRIES) {
           retryCountRef.current++;
           setTimeout(initWorker, 500 * retryCountRef.current);
           return;
         }
-        // 모든 재시도 실패 → workerRef를 null로 표시해 loadModel에서 재초기화 가능하게 함
-        workerRef.current = null;
+        // 모든 재시도 실패
+        pendingLoadModelRef.current = null;
         setPhase1Status('error');
         setPhase1Error(err.message || 'Worker 초기화 실패');
       };
+
+      // 이전 worker가 죽는 동안 loadModel이 호출됐다면 → 새 worker에 자동 재전송
+      if (pendingLoadModelRef.current) {
+        worker.postMessage({ type: 'load', payload: { modelId: pendingLoadModelRef.current } });
+      }
     };
 
-    // initWorker를 loadModel에서도 호출할 수 있도록 ref에 저장
     initWorkerRef.current = initWorker;
-
     initWorker();
 
     return () => {
@@ -96,12 +104,13 @@ export function useClassifier(): UseClassifierReturn {
   }, []);
 
   const loadModel = useCallback(() => {
-    // Worker가 null이면 재초기화 (dev 모드 503 후 사용자가 재시도 버튼 클릭 시)
+    // Worker가 없거나 죽어있으면 재초기화
     if (!workerRef.current) {
-      retryCountRef.current = 0; // 사용자가 직접 재시도 → 재시도 카운트 초기화
+      retryCountRef.current = 0;
       initWorkerRef.current?.();
     }
     if (!workerRef.current) return;
+    pendingLoadModelRef.current = phase1ModelId; // 재시도 중 worker가 죽어도 추적
     setPhase1Status('downloading');
     setPhase1Progress(0);
     setPhase1Error(null);

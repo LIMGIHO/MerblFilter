@@ -37,7 +37,7 @@ export default function LocalLLMPanel({ comments, onLabelsUpdate, labelMap, onHi
 
   const handleToggle = useCallback((enabled: boolean) => {
     setPhase1Enabled(enabled);
-    if (enabled && phase1Status === 'idle') loadModel();
+    if (enabled && (phase1Status === 'idle' || phase1Status === 'error')) loadModel();
   }, [phase1Status, loadModel, setPhase1Enabled]);
 
   const handleClassify = useCallback(() => {
