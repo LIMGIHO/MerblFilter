@@ -26,7 +26,6 @@ export function useClassifier(): UseClassifierReturn {
   const retryCountRef = useRef(0);
   const pendingLoadModelRef = useRef<string | null>(null);
   const {
-    phase1ModelId,
     phase1Status,
     setPhase1Status,
     setPhase1Progress,
@@ -111,7 +110,7 @@ export function useClassifier(): UseClassifierReturn {
 
       // 이전 Worker가 죽는 동안 loadModel이 호출됐다면 → 새 Worker에 자동 재전송
       if (pendingLoadModelRef.current) {
-        worker.postMessage({ type: 'load', payload: { modelId: pendingLoadModelRef.current } });
+        worker.postMessage({ type: 'load', payload: {} });
       }
     };
 
@@ -127,7 +126,7 @@ export function useClassifier(): UseClassifierReturn {
 
   const loadModel = useCallback(() => {
     // pending 먼저 설정 → initWorker(async)가 완료되면 자동으로 load 메시지 전송
-    pendingLoadModelRef.current = phase1ModelId;
+    pendingLoadModelRef.current = 'pending';
     setPhase1Status('downloading');
     setPhase1Progress(0);
     setPhase1Error(null);
@@ -138,8 +137,8 @@ export function useClassifier(): UseClassifierReturn {
       initWorkerRef.current?.();
       return;
     }
-    workerRef.current.postMessage({ type: 'load', payload: { modelId: phase1ModelId } });
-  }, [phase1ModelId]);
+    workerRef.current.postMessage({ type: 'load', payload: {} });
+  }, []);
 
   const classify = useCallback(
     (comments: BlogComment[], onResult: (results: ClassifyResult[]) => void) => {
