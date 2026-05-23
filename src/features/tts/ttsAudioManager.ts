@@ -88,12 +88,9 @@ class TTSAudioManager {
       if (token !== this.cancelToken) return;
       if (!res.ok) throw new Error(`TTS 요청 실패: ${res.status}`);
 
-      const canStream =
-        typeof MediaSource !== 'undefined' &&
-        MediaSource.isTypeSupported('audio/mpeg') &&
-        !!res.body;
-
-      if (!canStream) {
+      // MediaSource 스트리밍은 duration=Infinity → seek bar 불가
+      // 항상 blob 방식 사용 (duration 즉시 확정 → 처음부터 seek 가능)
+      if (true) {
         const blob = await res.blob();
         if (token !== this.cancelToken) return;
         this.objectUrl = URL.createObjectURL(blob);
