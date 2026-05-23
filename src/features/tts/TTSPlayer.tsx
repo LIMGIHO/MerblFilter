@@ -262,7 +262,7 @@ export default function TTSPlayer() {
                 </>
               ) : (
                 <div className="flex-1 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                  <div className="h-full w-2/5 bg-teal-400 rounded-full animate-pulse" />
+                  <div className="h-full w-full bg-teal-300 dark:bg-teal-700 rounded-full animate-pulse" />
                 </div>
               )}
             </div>
