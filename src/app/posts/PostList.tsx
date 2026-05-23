@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useReadPostsStore } from '@/store/readPostsStore';
 import { useTtsPlaylistStore } from '@/store/ttsPlaylistStore';
+import { useUiStore } from '@/store/uiStore';
 import dynamic from 'next/dynamic';
 import type { SelectedPost } from '@/features/llm/AISidePanel';
 
@@ -115,6 +116,12 @@ export default function PostList({ initialPosts }: PostListProps) {
   const panelOpen = panelMode !== null;
   const shiftStyle: React.CSSProperties =
     isDesktop && panelOpen ? { marginRight: `${panelWidth}px` } : {};
+
+  // TTS 플레이어가 콘텐츠 영역과 동기화되도록 offset 전달
+  const setContentPanelOffset = useUiStore((s) => s.setContentPanelOffset);
+  useEffect(() => {
+    setContentPanelOffset(isDesktop && panelOpen ? panelWidth : 0);
+  }, [isDesktop, panelOpen, panelWidth, setContentPanelOffset]);
 
   return (
     <>

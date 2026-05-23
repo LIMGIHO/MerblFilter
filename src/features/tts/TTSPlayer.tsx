@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useTtsPlaylistStore } from '@/store/ttsPlaylistStore';
 import { useTTS } from '@/features/llm/useTTS';
+import { useUiStore } from '@/store/uiStore';
 
 // HTML 태그 제거
 function stripHtml(html: string): string {
@@ -32,6 +33,7 @@ export default function TTSPlayer() {
   const { items, currentIndex, drawerOpen, remove, setCurrentIndex, clear, toggleDrawer } =
     useTtsPlaylistStore();
   const { isSupported, status, rate, setRate, play, pause, resume, stop, currentTime, duration, seek } = useTTS();
+  const contentPanelOffset = useUiStore((s) => s.contentPanelOffset);
 
   const bodyCache = useRef<Map<string, string>>(new Map());
   const [loadingBody, setLoadingBody] = useState(false);
@@ -129,63 +131,68 @@ export default function TTSPlayer() {
   }
 
   return (
-    <div className="fixed bottom-0 left-0 z-[49] flex flex-col items-start pointer-events-none">
+    <div
+      className="fixed bottom-0 left-0 right-0 z-[49] flex flex-col pointer-events-none transition-[padding-right] duration-300"
+      style={{ paddingRight: `${contentPanelOffset}px` }}
+    >
       {/* 플레이리스트 드로어 */}
       {drawerOpen && (
-        <div className="pointer-events-auto w-[min(448px,calc(100vw-24px))] ml-3 mb-1 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-2xl overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-100 dark:border-slate-800">
-            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
-              🎵 재생 목록 ({items.length}개)
-            </span>
-            <button
-              onClick={clear}
-              className="text-[10px] text-slate-400 hover:text-red-500 transition px-2 py-0.5 rounded"
-            >
-              전체 삭제
-            </button>
+        <div className="pointer-events-auto w-full max-w-3xl mx-auto px-4 sm:px-6 mb-1">
+          <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-100 dark:border-slate-800">
+              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+                🎵 재생 목록 ({items.length}개)
+              </span>
+              <button
+                onClick={clear}
+                className="text-[10px] text-slate-400 hover:text-red-500 transition px-2 py-0.5 rounded"
+              >
+                전체 삭제
+              </button>
+            </div>
+            <ul className="max-h-64 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
+              {items.map((item, idx) => {
+                const isActive = idx === currentIndex;
+                return (
+                  <li
+                    key={item.postId}
+                    className={`flex items-center gap-3 px-4 py-2.5 transition
+                      ${isActive ? 'bg-teal-50 dark:bg-teal-900/20' : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'}`}
+                  >
+                    <span className="w-4 flex-shrink-0 text-center text-xs">
+                      {isActive && isLoading ? (
+                        <span className="inline-block w-2.5 h-2.5 border border-teal-400 border-t-transparent rounded-full animate-spin" />
+                      ) : isActive && status === 'playing' ? (
+                        <span className="text-teal-500 animate-pulse">▶</span>
+                      ) : isActive && status === 'paused' ? (
+                        <span className="text-amber-400">⏸</span>
+                      ) : (
+                        <span className="text-slate-300 dark:text-slate-600">{idx + 1}</span>
+                      )}
+                    </span>
+                    <button
+                      className={`flex-1 text-sm text-left truncate transition
+                        ${isActive ? 'text-teal-600 dark:text-teal-400 font-medium' : 'text-slate-700 dark:text-slate-300 hover:text-teal-600 dark:hover:text-teal-400'}`}
+                      onClick={() => handleSelectItem(idx)}
+                    >
+                      {item.title}
+                    </button>
+                    <button
+                      onClick={() => handleRemove(item.postId)}
+                      className="flex-shrink-0 w-5 h-5 flex items-center justify-center text-slate-300 hover:text-red-400 transition rounded-full hover:bg-red-50 dark:hover:bg-red-900/20"
+                    >
+                      ×
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
           </div>
-          <ul className="max-h-64 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
-            {items.map((item, idx) => {
-              const isActive = idx === currentIndex;
-              return (
-                <li
-                  key={item.postId}
-                  className={`flex items-center gap-3 px-4 py-2.5 transition
-                    ${isActive ? 'bg-teal-50 dark:bg-teal-900/20' : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'}`}
-                >
-                  <span className="w-4 flex-shrink-0 text-center text-xs">
-                    {isActive && isLoading ? (
-                      <span className="inline-block w-2.5 h-2.5 border border-teal-400 border-t-transparent rounded-full animate-spin" />
-                    ) : isActive && status === 'playing' ? (
-                      <span className="text-teal-500 animate-pulse">▶</span>
-                    ) : isActive && status === 'paused' ? (
-                      <span className="text-amber-400">⏸</span>
-                    ) : (
-                      <span className="text-slate-300 dark:text-slate-600">{idx + 1}</span>
-                    )}
-                  </span>
-                  <button
-                    className={`flex-1 text-sm text-left truncate transition
-                      ${isActive ? 'text-teal-600 dark:text-teal-400 font-medium' : 'text-slate-700 dark:text-slate-300 hover:text-teal-600 dark:hover:text-teal-400'}`}
-                    onClick={() => handleSelectItem(idx)}
-                  >
-                    {item.title}
-                  </button>
-                  <button
-                    onClick={() => handleRemove(item.postId)}
-                    className="flex-shrink-0 w-5 h-5 flex items-center justify-center text-slate-300 hover:text-red-400 transition rounded-full hover:bg-red-50 dark:hover:bg-red-900/20"
-                  >
-                    ×
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
         </div>
       )}
 
       {/* 플레이어 바 */}
-      <div className="pointer-events-auto w-[min(448px,calc(100vw-24px))] ml-3 mb-3 px-3">
+      <div className="pointer-events-auto w-full max-w-3xl mx-auto px-4 sm:px-6 mb-3">
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl px-4 pt-2.5 pb-2 flex flex-col gap-1.5">
           {/* 상단: 트랙 정보 + 컨트롤 + 속도 */}
           <div className="flex items-center gap-3">
