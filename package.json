@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "build:worker": "node_modules/.pnpm/esbuild@0.21.5/node_modules/esbuild/bin/esbuild src/features/llm/llm.worker.ts --bundle --outfile=public/llm-worker.js --platform=browser --target=chrome90,firefox90,safari15 --format=iife --define:process.env.NODE_ENV=\"production\" --define:process.platform=\"browser\""
   },
   "dependencies": {
     "@mlc-ai/web-llm": "^0.2.83",

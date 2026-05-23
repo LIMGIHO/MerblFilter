@@ -22,7 +22,6 @@ export function useClassifier(): UseClassifierReturn {
   const workerRef = useRef<Worker | null>(null);
   const initWorkerRef = useRef<(() => void) | null>(null);
   const retryCountRef = useRef(0);
-  // 'load' 요청이 pending 중인 modelId. onerror로 worker가 죽어도 재시도 후 자동 재전송.
   const pendingLoadModelRef = useRef<string | null>(null);
   const {
     phase1ModelId,
@@ -33,24 +32,47 @@ export function useClassifier(): UseClassifierReturn {
   } = useLlmStore();
 
   // Worker 초기화
-  // webpack 5 네이티브 패턴: new Worker(new URL(...)) 인라인으로 사용해야
-  // webpack이 worker 전용 번들을 생성함. 변수로 분리하면 static media 파일로
-  // 처리되어 bare import 구문이 번들 없이 Worker에 전달되는 SyntaxError 발생.
   //
-  // Next.js dev 모드: 레이지 컴파일로 Worker 번들이 첫 요청 시 503 반환 가능.
-  // onerror 즉시 workerRef=null → 재시도 성공 시 pendingLoad 자동 재전송.
+  // public/llm-worker.js = esbuild로 독립 빌드된 Worker 전용 번들
+  //   → llm.worker.ts + @xenova/transformers만 포함, react-dom/Next.js 런타임 없음
+  //   → webpack HMR 영향 없는 정적 파일 (항상 200)
+  //
+  // Blob URL 방식:
+  //   COEP credentialless 환경에서 new Worker('/llm-worker.js') 직접 URL은
+  //   Chrome이 CORP 헤더 없다는 이유로 onerror 발생시킴.
+  //   fetch → Blob → new Worker(blobUrl) 패턴으로 우회.
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
     let currentWorker: Worker | null = null;
-    const MAX_RETRIES = 20; // dev HMR 503 대응: 충분한 재시도 횟수 확보
+    const MAX_RETRIES = 10;
     let cancelled = false;
 
-    const initWorker = () => {
+    const initWorker = async () => {
       if (cancelled) return;
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const worker = new Worker(new URL('./llm.worker.ts', import.meta.url));
+      let worker: Worker;
+      try {
+        const res = await fetch('/llm-worker.js');
+        if (!res.ok) throw new Error(`fetch ${res.status}`);
+        const blob = await res.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        worker = new Worker(blobUrl);
+        URL.revokeObjectURL(blobUrl); // Worker가 이미 로드했으므로 즉시 해제 가능
+      } catch (err) {
+        if (cancelled) return;
+        if (retryCountRef.current < MAX_RETRIES) {
+          retryCountRef.current++;
+          const delay = 500 * Math.min(retryCountRef.current, 6);
+          setTimeout(initWorker, delay);
+        } else {
+          pendingLoadModelRef.current = null;
+          setPhase1Status('error');
+          setPhase1Error(String((err as Error).message ?? 'Worker 로드 실패'));
+        }
+        return;
+      }
+
       currentWorker = worker;
       workerRef.current = worker;
 
@@ -61,7 +83,7 @@ export function useClassifier(): UseClassifierReturn {
           setPhase1Status('downloading');
         }
         if (type === 'loaded') {
-          pendingLoadModelRef.current = null; // 로드 완료 → pending 해제
+          pendingLoadModelRef.current = null;
           setPhase1Status('ready');
           setPhase1Progress(100);
         }
@@ -73,23 +95,19 @@ export function useClassifier(): UseClassifierReturn {
       };
       worker.onerror = (err) => {
         if (cancelled) return;
-        // onerror 즉시 null: loadModel이 죽은 worker에 메시지 보내는 것을 막음
         workerRef.current = null;
-
         if (retryCountRef.current < MAX_RETRIES) {
           retryCountRef.current++;
-          // 최대 3초 캡: HMR 재빌드 완료를 기다리되 너무 길어지지 않게
           const delay = 500 * Math.min(retryCountRef.current, 6);
           setTimeout(initWorker, delay);
           return;
         }
-        // 모든 재시도 실패
         pendingLoadModelRef.current = null;
         setPhase1Status('error');
         setPhase1Error(err.message || 'Worker 초기화 실패');
       };
 
-      // 이전 worker가 죽는 동안 loadModel이 호출됐다면 → 새 worker에 자동 재전송
+      // 이전 Worker가 죽는 동안 loadModel이 호출됐다면 → 새 Worker에 자동 재전송
       if (pendingLoadModelRef.current) {
         worker.postMessage({ type: 'load', payload: { modelId: pendingLoadModelRef.current } });
       }
@@ -106,16 +124,18 @@ export function useClassifier(): UseClassifierReturn {
   }, []);
 
   const loadModel = useCallback(() => {
-    // Worker가 없거나 죽어있으면 재초기화
-    if (!workerRef.current) {
-      retryCountRef.current = 0;
-      initWorkerRef.current?.();
-    }
-    if (!workerRef.current) return;
-    pendingLoadModelRef.current = phase1ModelId; // 재시도 중 worker가 죽어도 추적
+    // pending 먼저 설정 → initWorker(async)가 완료되면 자동으로 load 메시지 전송
+    pendingLoadModelRef.current = phase1ModelId;
     setPhase1Status('downloading');
     setPhase1Progress(0);
     setPhase1Error(null);
+
+    if (!workerRef.current) {
+      // Worker가 없으면 재초기화 (async initWorker가 완료 후 pendingLoad 자동 전송)
+      retryCountRef.current = 0;
+      initWorkerRef.current?.();
+      return;
+    }
     workerRef.current.postMessage({ type: 'load', payload: { modelId: phase1ModelId } });
   }, [phase1ModelId]);
 
