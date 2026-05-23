@@ -78,7 +78,7 @@ export default function CommentsPanel({
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const prevPostIdRef = useRef<string>('');
 
-  const { settings, addBlockedUser } = useFilterStore();
+  const { settings, addBlockedUser, addFavoriteUser } = useFilterStore();
   const { phase1ScoreThreshold } = useLlmStore();
 
   function handleBlock(comment: BlogComment) {
@@ -86,6 +86,14 @@ export default function CommentsPanel({
     if (!target || isOwnerComment(comment)) return;
     addBlockedUser(target);
     setToastMsg(`"${target}" 차단됨`);
+    setTimeout(() => setToastMsg(null), 2500);
+  }
+
+  function handleFavorite(comment: BlogComment) {
+    const target = comment.profileUserId || comment.userName;
+    if (!target || isOwnerComment(comment)) return;
+    addFavoriteUser(target);
+    setToastMsg(`"${target}" 선호 유저 등록됨`);
     setTimeout(() => setToastMsg(null), 2500);
   }
 
@@ -337,15 +345,24 @@ export default function CommentsPanel({
                       {isOwnerComment(comment) && (
                         <span className="text-[9px] bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-200 px-1.5 py-0.5 rounded">👑 메르님</span>
                       )}
-                      {/* 차단 버튼 (hover 시 노출, 주인장 제외) */}
+                      {/* hover 시 노출 버튼 (주인장 제외) */}
                       {!isOwnerComment(comment) && (
-                        <button
-                          onClick={() => handleBlock(comment)}
-                          className="opacity-0 group-hover:opacity-100 text-[9px] text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 px-1.5 py-0.5 rounded transition-all"
-                          title="이 사용자 차단"
-                        >
-                          차단
-                        </button>
+                        <>
+                          <button
+                            onClick={() => handleFavorite(comment)}
+                            className="opacity-0 group-hover:opacity-100 text-[9px] text-slate-400 hover:text-teal-500 hover:bg-teal-50 dark:hover:bg-teal-900/20 px-1.5 py-0.5 rounded transition-all"
+                            title="선호 유저 등록"
+                          >
+                            ⭐
+                          </button>
+                          <button
+                            onClick={() => handleBlock(comment)}
+                            className="opacity-0 group-hover:opacity-100 text-[9px] text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 px-1.5 py-0.5 rounded transition-all"
+                            title="이 사용자 차단"
+                          >
+                            🚫
+                          </button>
+                        </>
                       )}
                       {comment.sympathyCount !== undefined && comment.sympathyCount > 0 && (
                         <span className="text-[9px] text-pink-500">👍 {comment.sympathyCount}</span>
@@ -387,7 +404,7 @@ export default function CommentsPanel({
                 {comment.replies.length > 0 && (
                   <div className="ml-6 space-y-1.5">
                     {comment.replies.map((reply, ri) => (
-                      <div key={ri} className={`flex items-start gap-2 p-2 rounded-xl border-l-4 text-sm
+                      <div key={ri} className={`group flex items-start gap-2 p-2 rounded-xl border-l-4 text-sm
                         ${isOwnerComment(reply) ? 'bg-amber-50 dark:bg-amber-900/10 border-l-amber-400' : 'bg-slate-50 dark:bg-slate-800/60 border-l-slate-200 dark:border-l-slate-700'}`}>
                         <span className="text-slate-400 font-bold text-sm mt-0.5 flex-shrink-0">ㄴ</span>
                         <ProfileImage imageUrl={reply.userProfileImage} isOwner={isOwnerComment(reply)} size="small" />
@@ -398,6 +415,25 @@ export default function CommentsPanel({
                             </span>
                             {isOwnerComment(reply) && (
                               <span className="text-[9px] bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-200 px-1.5 py-0.5 rounded">👑 메르님</span>
+                            )}
+                            {/* hover 시 노출 버튼 (주인장 제외) */}
+                            {!isOwnerComment(reply) && (
+                              <>
+                                <button
+                                  onClick={() => handleFavorite(reply)}
+                                  className="opacity-0 group-hover:opacity-100 text-[9px] text-slate-400 hover:text-teal-500 hover:bg-teal-50 dark:hover:bg-teal-900/20 px-1.5 py-0.5 rounded transition-all"
+                                  title="선호 유저 등록"
+                                >
+                                  ⭐
+                                </button>
+                                <button
+                                  onClick={() => handleBlock(reply)}
+                                  className="opacity-0 group-hover:opacity-100 text-[9px] text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 px-1.5 py-0.5 rounded transition-all"
+                                  title="이 사용자 차단"
+                                >
+                                  🚫
+                                </button>
+                              </>
                             )}
                             <span className="text-[9px] text-slate-400 bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded ml-auto">
                               {formatDate(reply.regTime || reply.regTimeGmt)}
