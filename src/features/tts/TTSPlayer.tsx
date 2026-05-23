@@ -32,7 +32,7 @@ const RATES = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
 export default function TTSPlayer() {
   const { items, currentIndex, drawerOpen, remove, setCurrentIndex, clear, toggleDrawer } =
     useTtsPlaylistStore();
-  const { isSupported, status, rate, setRate, play, pause, resume, stop, currentTime, duration, seek } = useTTS();
+  const { isSupported, status, rate, volume, setRate, setVolume, play, pause, resume, stop, currentTime, duration, seek } = useTTS();
   const contentPanelOffset = useUiStore((s) => s.contentPanelOffset);
 
   const bodyCache = useRef<Map<string, string>>(new Map());
@@ -232,6 +232,22 @@ export default function TTSPlayer() {
                 className="w-7 h-7 flex items-center justify-center rounded-full text-slate-500 hover:text-red-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition">
                 ⏹
               </button>
+            </div>
+
+            {/* 볼륨 */}
+            <div className="flex items-center gap-1 flex-shrink-0">
+              <span className="text-slate-400 text-xs select-none">
+                {volume === 0 ? '🔇' : volume < 0.5 ? '🔉' : '🔊'}
+              </span>
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.05}
+                value={volume}
+                onChange={(e) => setVolume(Number(e.target.value))}
+                className="w-16 h-1 accent-teal-500 cursor-pointer"
+              />
             </div>
 
             {/* 속도 */}

@@ -10,9 +10,11 @@ export interface UseTTSReturn {
   isSupported: boolean;
   status: TTSStatus;
   rate: number;
+  volume: number;
   currentTime: number;
   duration: number;
   setRate: (r: number) => void;
+  setVolume: (v: number) => void;
   play: (text: string, onEnd?: () => void) => Promise<void>;
   pause: () => void;
   resume: () => void;
@@ -41,9 +43,11 @@ export function useTTS(): UseTTSReturn {
     isSupported,
     status: state.status,
     rate: state.rate,
+    volume: state.volume,
     currentTime: state.currentTime,
     duration: state.duration,
     setRate: (r) => ttsAudioManager.setRate(r),
+    setVolume: (v) => ttsAudioManager.setVolume(v),
     play: (text, onEnd) => ttsAudioManager.play(text, onEnd),
     pause: () => ttsAudioManager.pause(),
     resume: () => ttsAudioManager.resume(),

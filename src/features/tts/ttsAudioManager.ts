@@ -15,6 +15,7 @@ interface AudioState {
   currentTime: number;
   duration: number;
   rate: number;
+  volume: number;
 }
 
 class TTSAudioManager {
@@ -24,6 +25,7 @@ class TTSAudioManager {
   private listeners = new Set<Listener>();
   private _status: TTSStatus = 'idle';
   private _rate = 1.0;
+  private _volume = 1.0;
   private _currentTime = 0;
   private _duration = 0;
   private cancelToken = 0;
@@ -45,6 +47,7 @@ class TTSAudioManager {
       currentTime: this._currentTime,
       duration: this._duration,
       rate: this._rate,
+      volume: this._volume,
     };
   }
 
@@ -96,6 +99,7 @@ class TTSAudioManager {
         this.objectUrl = URL.createObjectURL(blob);
         this.audio = new Audio(this.objectUrl);
         this.audio.playbackRate = this._rate;
+        this.audio.volume = this._volume;
         this._attachListeners(this.audio, token);
         await this.audio.play();
         if (token === this.cancelToken) this.setStatus('playing');
@@ -207,6 +211,12 @@ class TTSAudioManager {
   setRate(r: number) {
     this._rate = r;
     if (this.audio) this.audio.playbackRate = r;
+    this.notify();
+  }
+
+  setVolume(v: number) {
+    this._volume = Math.max(0, Math.min(1, v));
+    if (this.audio) this.audio.volume = this._volume;
     this.notify();
   }
 }
