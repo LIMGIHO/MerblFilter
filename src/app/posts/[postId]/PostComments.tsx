@@ -4,8 +4,9 @@ import { useEffect, useState, useCallback } from 'react';
 import { BlogComment } from '@/domain/comment/types';
 import { isOwnerComment } from '@/domain/filter/filterEngine';
 import LocalLLMPanel from '@/features/llm/LocalLLMPanel';
+import type { QualityLabel, QualityTag, ClassifyResult } from '@/features/llm/useClassifier';
 
-type LlmLabel = 'spam' | 'promo' | 'negative' | 'neutral' | 'positive';
+type LlmResult = { label: QualityLabel; score: number; tag: QualityTag };
 
 interface CommentWithReplies extends BlogComment {
   replies: BlogComment[];
@@ -48,8 +49,8 @@ export default function PostComments({ postId, blogId = 'ranto28' }: { postId: s
   const [isLoading, setIsLoading] = useState(false);
   const [lastRefreshTime, setLastRefreshTime] = useState<Date | null>(null);
   const [isMobile, setIsMobile] = useState(false);
-  const [llmLabelMap, setLlmLabelMap] = useState<Record<number, LlmLabel>>({});
-  const [hiddenLabels, setHiddenLabels] = useState<Set<LlmLabel>>(new Set());
+  const [llmResultMap, setLlmResultMap] = useState<Record<number, LlmResult>>({});
+  const [qualityFilterActive, setQualityFilterActive] = useState(false);
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768);
@@ -67,7 +68,7 @@ export default function PostComments({ postId, blogId = 'ranto28' }: { postId: s
       if (data.result?.commentList) {
         setComments(data.result.commentList);
         setLastRefreshTime(new Date());
-        setLlmLabelMap({});
+        setLlmResultMap({});
       }
     } catch (e) {
       console.error('댓글 로딩 실패:', e);
@@ -90,13 +91,15 @@ export default function PostComments({ postId, blogId = 'ranto28' }: { postId: s
   const ownerRelatedComments = structuredComments.filter((c) =>
     isOwnerComment(c) || c.replies.some(isOwnerComment)
   );
-  // AI 레이블 필터가 활성화된 경우 전체 댓글 기준으로 필터링 (메르님 뷰에서도 전체 분류 결과 반영)
-  const baseComments = (hiddenLabels.size > 0) ? structuredComments : (showAllComments ? structuredComments : ownerRelatedComments);
+  // AI 품질 필터가 활성화된 경우 전체 댓글 기준으로 필터링 (메르님 뷰에서도 전체 분류 결과 반영)
+  const baseComments = (qualityFilterActive && Object.keys(llmResultMap).length > 0)
+    ? structuredComments
+    : (showAllComments ? structuredComments : ownerRelatedComments);
   const commentsToShow = baseComments
     .filter((c) => {
-      if (hiddenLabels.size === 0) return true;
-      const label = llmLabelMap[c.commentNo];
-      return !label || !hiddenLabels.has(label);
+      if (!qualityFilterActive || Object.keys(llmResultMap).length === 0) return true;
+      const result = llmResultMap[c.commentNo];
+      return !result || result.label === 'worth_reading';
     });
 
   return (
@@ -166,7 +169,17 @@ export default function PostComments({ postId, blogId = 'ranto28' }: { postId: s
 
           {showFiltered && (
             <div className="ml-auto">
-              <LocalLLMPanel comments={comments} onLabelsUpdate={setLlmLabelMap} labelMap={llmLabelMap} onHideLabelsChange={setHiddenLabels} />
+              <LocalLLMPanel
+                comments={comments}
+                onResultsUpdate={(results: ClassifyResult[]) => {
+                  const map: Record<number, LlmResult> = {};
+                  results.forEach((r) => { map[r.commentNo] = { label: r.label, score: r.score, tag: r.tag }; });
+                  setLlmResultMap(map);
+                }}
+                resultMap={llmResultMap}
+                qualityFilterActive={qualityFilterActive}
+                onQualityFilterToggle={setQualityFilterActive}
+              />
             </div>
           )}
         </div>
@@ -179,7 +192,7 @@ export default function PostComments({ postId, blogId = 'ranto28' }: { postId: s
                 <ul className="h-full space-y-2 sm:space-y-6 overflow-y-auto w-full px-0.5 sm:px-2">
                   {commentsToShow.length === 0 ? (
                     <li className="text-xs text-gray-400">
-                      {hiddenLabels.size > 0 ? '해당 레이블의 댓글이 없습니다.' : showAllComments ? '아직 댓글이 없습니다.' : '메르님이 참여한 댓글이 없습니다.'}
+                      {qualityFilterActive ? '읽을만한 댓글이 없습니다.' : showAllComments ? '아직 댓글이 없습니다.' : '메르님이 참여한 댓글이 없습니다.'}
                     </li>
                   ) : (
                     commentsToShow.map((comment, idx) => (
@@ -197,11 +210,15 @@ export default function PostComments({ postId, blogId = 'ranto28' }: { postId: s
                               {comment.sympathyCount !== undefined && comment.sympathyCount > 0 && (
                                 <span className="text-[9px] sm:text-xs text-pink-500">👍 {comment.sympathyCount}</span>
                               )}
-                              {llmLabelMap[comment.commentNo] && llmLabelMap[comment.commentNo] !== 'neutral' && (
-                                <span className="text-[9px] sm:text-xs bg-violet-100 text-violet-700 px-1 py-0.5 rounded">
-                                  {llmLabelMap[comment.commentNo] === 'positive' ? '긍정' : llmLabelMap[comment.commentNo] === 'negative' ? '부정' : llmLabelMap[comment.commentNo] === 'spam' ? '스팸' : '홍보'}
-                                </span>
-                              )}
+                              {(() => {
+                                const r = llmResultMap[comment.commentNo];
+                                if (!r || r.label !== 'worth_reading') return null;
+                                return (
+                                  <span className="text-[9px] sm:text-xs px-1 py-0.5 rounded bg-teal-100 text-teal-700">
+                                    {r.tag} · {r.score}점
+                                  </span>
+                                );
+                              })()}
                               <span className="text-[9px] sm:text-xs text-gray-500 bg-gray-100 px-1 sm:px-2 py-0.5 rounded">
                                 {formatDate(comment.regTime || comment.regTimeGmt)}
                               </span>
