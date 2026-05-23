@@ -2,27 +2,26 @@
 
 import { useState, useCallback } from 'react';
 import { useLlmStore } from '@/store/llmStore';
-import { useClassifier, ClassifyResult } from './useClassifier';
+import { useClassifier, ClassifyResult, QualityLabel, QualityTag } from './useClassifier';
 import { BlogComment } from '@/domain/comment/types';
 
-type LlmLabel = 'spam' | 'promo' | 'negative' | 'neutral' | 'positive';
-
-const LABEL_CONFIG: Record<LlmLabel, { text: string; color: string }> = {
-  spam:     { text: '스팸',   color: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' },
-  promo:    { text: '홍보',   color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300' },
-  negative: { text: '부정',   color: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300' },
-  neutral:  { text: '중립',   color: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400' },
-  positive: { text: '긍정',   color: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' },
-};
+type LlmResult = { label: QualityLabel; score: number; tag: QualityTag };
 
 interface LocalLLMPanelProps {
   comments: BlogComment[];
-  onLabelsUpdate: (labels: Record<number, LlmLabel>) => void;
-  labelMap: Record<number, LlmLabel>;
-  onHideLabelsChange?: (hidden: Set<LlmLabel>) => void;
+  onResultsUpdate: (results: ClassifyResult[]) => void;
+  resultMap: Record<number, LlmResult>;
+  qualityFilterActive: boolean;
+  onQualityFilterToggle: (active: boolean) => void;
 }
 
-export default function LocalLLMPanel({ comments, onLabelsUpdate, labelMap, onHideLabelsChange }: LocalLLMPanelProps) {
+export default function LocalLLMPanel({
+  comments,
+  onResultsUpdate,
+  resultMap,
+  qualityFilterActive,
+  onQualityFilterToggle,
+}: LocalLLMPanelProps) {
   const {
     phase1Enabled,
     phase1Status,
@@ -33,7 +32,6 @@ export default function LocalLLMPanel({ comments, onLabelsUpdate, labelMap, onHi
 
   const { loadModel, classify, isReady } = useClassifier();
   const [isOpen, setIsOpen] = useState(false);
-  const [hideLabels, setHideLabels] = useState<Set<LlmLabel>>(new Set());
 
   const handleToggle = useCallback((enabled: boolean) => {
     setPhase1Enabled(enabled);
@@ -43,17 +41,16 @@ export default function LocalLLMPanel({ comments, onLabelsUpdate, labelMap, onHi
   const handleClassify = useCallback(() => {
     const visible = comments.filter((c) => c.replyLevel === 1);
     classify(visible, (results: ClassifyResult[]) => {
-      const map: Record<number, LlmLabel> = { ...labelMap };
-      results.forEach((r) => { map[r.commentNo] = r.label; });
-      onLabelsUpdate(map);
+      onResultsUpdate(results);
     });
-  }, [comments, classify, labelMap, onLabelsUpdate]);
+  }, [comments, classify, onResultsUpdate]);
 
-  // 숨길 레이블 통계
-  const labelCounts = Object.values(labelMap).reduce((acc, l) => {
-    acc[l] = (acc[l] ?? 0) + 1;
-    return acc;
-  }, {} as Record<LlmLabel, number>);
+  const totalClassified = Object.keys(resultMap).length;
+  const hiddenCount = Object.values(resultMap).filter((r) => r.label !== 'worth_reading').length;
+  const worthReadingCount = totalClassified - hiddenCount;
+
+  // isReady is available for future use
+  void isReady;
 
   return (
     <div className="relative">
@@ -62,7 +59,7 @@ export default function LocalLLMPanel({ comments, onLabelsUpdate, labelMap, onHi
         onClick={() => setIsOpen((v) => !v)}
         className="text-xs px-2.5 py-1 rounded-full transition flex items-center gap-1.5 border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:border-teal-400 hover:text-teal-600 dark:hover:text-teal-400"
       >
-        <span>✦ AI 분류</span>
+        <span>✦ AI 필터</span>
         {phase1Status === 'downloading' && (
           <span className="text-teal-500 animate-pulse">{phase1Progress}%</span>
         )}
@@ -75,9 +72,9 @@ export default function LocalLLMPanel({ comments, onLabelsUpdate, labelMap, onHi
         {phase1Status === 'ready' && (
           <span className="w-1.5 h-1.5 rounded-full bg-teal-400 inline-block" />
         )}
-        {Object.keys(labelMap).length > 0 && (
+        {totalClassified > 0 && (
           <span className="bg-teal-100 dark:bg-teal-900/40 text-teal-600 dark:text-teal-400 px-1.5 rounded-full text-[10px]">
-            {Object.keys(labelMap).length}
+            {worthReadingCount}
           </span>
         )}
       </button>
@@ -86,11 +83,11 @@ export default function LocalLLMPanel({ comments, onLabelsUpdate, labelMap, onHi
       {isOpen && (
         <div className="absolute right-0 top-9 z-50 w-72 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl p-3.5 space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="font-semibold text-xs text-slate-700 dark:text-slate-200">✦ AI 댓글 분류</h3>
+            <h3 className="font-semibold text-xs text-slate-700 dark:text-slate-200">✦ AI 댓글 필터</h3>
             <label className="flex items-center gap-2 cursor-pointer">
               <div
                 onClick={() => handleToggle(!phase1Enabled)}
-                className={`relative w-8 h-4.5 rounded-full transition-colors ${phase1Enabled ? 'bg-teal-500' : 'bg-slate-300 dark:bg-slate-600'}`}
+                className={`relative rounded-full transition-colors ${phase1Enabled ? 'bg-teal-500' : 'bg-slate-300 dark:bg-slate-600'}`}
                 style={{ height: '18px', width: '32px' }}
               >
                 <span className={`absolute top-0.5 left-0.5 w-3.5 h-3.5 bg-white rounded-full shadow transition-transform ${phase1Enabled ? 'translate-x-3.5' : ''}`} />
@@ -101,8 +98,8 @@ export default function LocalLLMPanel({ comments, onLabelsUpdate, labelMap, onHi
 
           {/* 모델 정보 */}
           <div className="text-[10px] text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-800 rounded-lg px-2.5 py-1.5">
-            <div className="font-medium text-slate-500 dark:text-slate-400">bert-base-multilingual-uncased</div>
-            <div>다국어 감성 분석 (~170MB, IndexedDB 캐시)</div>
+            <div className="font-medium text-slate-500 dark:text-slate-400">paraphrase-multilingual-MiniLM-L12</div>
+            <div>읽을만한 댓글 필터 (~120MB, IndexedDB 캐시)</div>
           </div>
 
           {/* 상태 표시 */}
@@ -156,49 +153,44 @@ export default function LocalLLMPanel({ comments, onLabelsUpdate, labelMap, onHi
             </div>
           )}
 
-          {/* 레이블 통계 + 숨김 옵션 */}
-          {Object.keys(labelMap).length > 0 && (
+          {/* 분류 결과 + 필터 토글 */}
+          {totalClassified > 0 && (
             <div className="space-y-2">
-              <div className="text-xs font-medium text-gray-700 dark:text-gray-300">분류 결과 (클릭하면 해당 레이블 숨김)</div>
-              <div className="flex flex-wrap gap-1.5">
-                {(Object.keys(LABEL_CONFIG) as LlmLabel[]).map((label) => {
-                  const count = labelCounts[label] ?? 0;
-                  if (!count) return null;
-                  const isHidden = hideLabels.has(label);
-                  return (
-                    <button
-                      key={label}
-                      onClick={() => {
-                        const next = new Set(hideLabels);
-                        if (isHidden) next.delete(label); else next.add(label);
-                        setHideLabels(next);
-                        onHideLabelsChange?.(next);
-                      }}
-                      className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full transition
-                        ${LABEL_CONFIG[label].color}
-                        ${isHidden ? 'opacity-40 line-through' : ''}`}
-                    >
-                      {LABEL_CONFIG[label].text} {count}
-                    </button>
-                  );
-                })}
+              <div className="flex items-center justify-between">
+                <div className="text-xs text-slate-600 dark:text-slate-300">
+                  읽을만한 댓글 <span className="font-semibold text-teal-600">{worthReadingCount}개</span>
+                  <span className="text-slate-400 dark:text-slate-500"> / {totalClassified}개</span>
+                </div>
+                <button
+                  onClick={() => onQualityFilterToggle(!qualityFilterActive)}
+                  className={`text-[10px] px-2 py-0.5 rounded-full border transition ${
+                    qualityFilterActive
+                      ? 'bg-teal-500 text-white border-teal-500'
+                      : 'bg-white dark:bg-slate-800 text-slate-500 border-slate-300 dark:border-slate-600'
+                  }`}
+                >
+                  {qualityFilterActive ? '필터 ON' : '필터 OFF'}
+                </button>
               </div>
+              {qualityFilterActive && hiddenCount > 0 && (
+                <div className="text-[10px] text-slate-400 dark:text-slate-500">
+                  {hiddenCount}개 댓글이 필터됨
+                </div>
+              )}
             </div>
           )}
-
         </div>
       )}
     </div>
   );
 }
 
-// 레이블 배지 (CommentItem에서 사용)
-export function LlmLabelBadge({ label }: { label: LlmLabel }) {
-  const cfg = LABEL_CONFIG[label];
-  if (!cfg || label === 'neutral') return null;
+// 댓글 배지 (CommentsPanel에서 사용)
+export function LlmQualityBadge({ label, score, tag }: { label: QualityLabel; score: number; tag: QualityTag }) {
+  if (label !== 'worth_reading') return null;
   return (
-    <span className={`text-xs px-1.5 py-0.5 rounded ${cfg.color}`}>
-      {cfg.text}
+    <span className="text-[10px] px-1.5 py-0.5 rounded bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300">
+      {tag} · {score}점
     </span>
   );
 }
