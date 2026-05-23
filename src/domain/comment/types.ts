@@ -32,7 +32,9 @@ export interface BlogComment {
   // 필터 엔진이 추가하는 메타 필드 (런타임 전용)
   _isHidden?: boolean;
   _hiddenReason?: string;
-  _llmLabel?: 'spam' | 'promo' | 'negative' | 'neutral' | 'positive';
+  _llmLabel?: 'worth_reading' | 'noise' | 'spam';
+  _llmScore?: number;   // 0~100
+  _llmTag?: '경험공유' | '의견있음' | 'noise' | 'spam';
 }
 
 export interface BlogCommentWithReplies extends BlogComment {

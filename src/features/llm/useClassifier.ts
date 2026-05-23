@@ -4,12 +4,14 @@ import { useEffect, useRef, useCallback } from 'react';
 import { useLlmStore } from '@/store/llmStore';
 import { BlogComment } from '@/domain/comment/types';
 
-type LlmLabel = 'spam' | 'promo' | 'negative' | 'neutral' | 'positive';
+export type QualityLabel = 'worth_reading' | 'noise' | 'spam';
+export type QualityTag = '경험공유' | '의견있음' | 'noise' | 'spam';
 
 export interface ClassifyResult {
   commentNo: number;
-  label: LlmLabel;
-  score: number;
+  label: QualityLabel;
+  score: number;   // 0~100
+  tag: QualityTag;
 }
 
 interface UseClassifierReturn {
