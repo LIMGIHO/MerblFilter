@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useLlmStore } from '@/store/llmStore';
 import { useClassifier, ClassifyResult, QualityLabel, QualityTag } from './useClassifier';
 import { BlogComment } from '@/domain/comment/types';
@@ -35,6 +35,19 @@ export default function LocalLLMPanel({
 
   const { loadModel, classify, isReady } = useClassifier();
   const [isOpen, setIsOpen] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  // 팝업 바깥 클릭 시 닫기
+  useEffect(() => {
+    if (!isOpen) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isOpen]);
 
   // 모델이 이미 캐시돼 있으면 패널 열자마자 자동 로드
   useEffect(() => {
@@ -67,7 +80,7 @@ export default function LocalLLMPanel({
   void isReady;
 
   return (
-    <div className="relative">
+    <div className="relative" ref={wrapperRef}>
       {/* 토글 버튼 */}
       <button
         onClick={() => setIsOpen((v) => !v)}
