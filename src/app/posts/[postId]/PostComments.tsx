@@ -5,6 +5,7 @@ import { BlogComment } from '@/domain/comment/types';
 import { isOwnerComment } from '@/domain/filter/filterEngine';
 import LocalLLMPanel from '@/features/llm/LocalLLMPanel';
 import type { QualityLabel, QualityTag, ClassifyResult } from '@/features/llm/useClassifier';
+import { useLlmStore } from '@/store/llmStore';
 
 type LlmResult = { label: QualityLabel; score: number; tag: QualityTag };
 
@@ -43,6 +44,7 @@ function formatDate(dateStr?: string) {
 // filterEngine의 isOwnerComment를 import해서 사용 (profileUserId, userName fallback 포함)
 
 export default function PostComments({ postId, blogId = 'ranto28' }: { postId: string; blogId?: string }) {
+  const { phase1ScoreThreshold } = useLlmStore();
   const [showFiltered, setShowFiltered] = useState(false);
   const [showAllComments, setShowAllComments] = useState(false);
   const [comments, setComments] = useState<BlogComment[]>([]);
@@ -99,7 +101,9 @@ export default function PostComments({ postId, blogId = 'ranto28' }: { postId: s
     .filter((c) => {
       if (!qualityFilterActive || Object.keys(llmResultMap).length === 0) return true;
       const result = llmResultMap[c.commentNo];
-      return !result || result.label === 'worth_reading';
+      if (!result) return true;
+      if (result.label === 'spam') return false;
+      return result.score >= phase1ScoreThreshold;
     });
 
   return (

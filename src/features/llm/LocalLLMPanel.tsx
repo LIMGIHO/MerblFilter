@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useLlmStore } from '@/store/llmStore';
 import { useClassifier, ClassifyResult, QualityLabel, QualityTag } from './useClassifier';
 import { BlogComment } from '@/domain/comment/types';
@@ -27,11 +27,22 @@ export default function LocalLLMPanel({
     phase1Status,
     phase1Progress,
     phase1Error,
+    phase1HasDownloaded,
+    phase1ScoreThreshold,
     setPhase1Enabled,
+    setPhase1ScoreThreshold,
   } = useLlmStore();
 
   const { loadModel, classify, isReady } = useClassifier();
   const [isOpen, setIsOpen] = useState(false);
+
+  // 모델이 이미 캐시돼 있으면 패널 열자마자 자동 로드
+  useEffect(() => {
+    if (phase1Enabled && phase1HasDownloaded && phase1Status === 'idle') {
+      loadModel();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleToggle = useCallback((enabled: boolean) => {
     setPhase1Enabled(enabled);
@@ -46,7 +57,9 @@ export default function LocalLLMPanel({
   }, [comments, classify, onResultsUpdate]);
 
   const totalClassified = Object.keys(resultMap).length;
-  const hiddenCount = Object.values(resultMap).filter((r) => r.label !== 'worth_reading').length;
+  const hiddenCount = Object.values(resultMap).filter(
+    (r) => r.label === 'spam' || r.score < phase1ScoreThreshold
+  ).length;
   const worthReadingCount = totalClassified - hiddenCount;
 
   // isReady is available for future use
@@ -105,13 +118,16 @@ export default function LocalLLMPanel({
           {/* 상태 표시 */}
           {phase1Enabled && (
             <div className="space-y-2">
-              {phase1Status === 'idle' && (
+              {phase1Status === 'idle' && !phase1HasDownloaded && (
                 <button
                   onClick={loadModel}
                   className="w-full py-1.5 text-xs bg-teal-500 text-white rounded-xl hover:bg-teal-600 transition"
                 >
                   모델 다운로드 시작
                 </button>
+              )}
+              {phase1Status === 'idle' && phase1HasDownloaded && (
+                <div className="text-center text-xs text-teal-500 animate-pulse">캐시에서 불러오는 중...</div>
               )}
 
               {phase1Status === 'downloading' && (
@@ -156,6 +172,29 @@ export default function LocalLLMPanel({
           {/* 분류 결과 + 필터 토글 */}
           {totalClassified > 0 && (
             <div className="space-y-2">
+              {/* 커트라인 슬라이더 */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400">
+                  <span>최소 점수 (커트라인)</span>
+                  <span className="font-semibold text-teal-600 dark:text-teal-400">{phase1ScoreThreshold}점</span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  step={5}
+                  value={phase1ScoreThreshold}
+                  onChange={(e) => setPhase1ScoreThreshold(Number(e.target.value))}
+                  className="w-full h-1.5 accent-teal-500 cursor-pointer"
+                />
+                <div className="flex justify-between text-[9px] text-slate-400">
+                  <span>0</span>
+                  <span>50</span>
+                  <span>100</span>
+                </div>
+              </div>
+
+              {/* 분류 통계 + 필터 토글 */}
               <div className="flex items-center justify-between">
                 <div className="text-xs text-slate-600 dark:text-slate-300">
                   읽을만한 댓글 <span className="font-semibold text-teal-600">{worthReadingCount}개</span>

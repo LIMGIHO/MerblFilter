@@ -6,6 +6,7 @@ import { isOwnerComment } from '@/domain/filter/filterEngine';
 import { useFilterStore } from '@/store/filterStore';
 import dynamic from 'next/dynamic';
 import type { QualityLabel, QualityTag, ClassifyResult } from '@/features/llm/useClassifier';
+import { useLlmStore } from '@/store/llmStore';
 
 const LocalLLMPanel = dynamic(() => import('@/features/llm/LocalLLMPanel'), { ssr: false });
 
@@ -73,6 +74,7 @@ export default function CommentsPanel({
   const prevPostIdRef = useRef<string>('');
 
   const { settings, addBlockedUser, removeBlockedUser } = useFilterStore();
+  const { phase1ScoreThreshold } = useLlmStore();
 
   function handleBlock(comment: BlogComment) {
     const target = comment.profileUserId || comment.userName;
@@ -182,7 +184,9 @@ export default function CommentsPanel({
     if (isBlockedUser(c)) return false;
     if (!qualityFilterActive || Object.keys(llmResultMap).length === 0) return true;
     const result = llmResultMap[c.commentNo];
-    return !result || result.label === 'worth_reading';
+    if (!result) return true;
+    if (result.label === 'spam') return false;
+    return result.score >= phase1ScoreThreshold;
   });
 
   if (!isOpen) return null;

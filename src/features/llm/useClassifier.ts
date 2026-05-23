@@ -30,6 +30,7 @@ export function useClassifier(): UseClassifierReturn {
     setPhase1Status,
     setPhase1Progress,
     setPhase1Error,
+    setPhase1HasDownloaded,
   } = useLlmStore();
 
   // Worker 초기화
@@ -87,6 +88,7 @@ export function useClassifier(): UseClassifierReturn {
           pendingLoadModelRef.current = null;
           setPhase1Status('ready');
           setPhase1Progress(100);
+          setPhase1HasDownloaded(true);
         }
         if (type === 'error') {
           pendingLoadModelRef.current = null;

@@ -29002,11 +29002,25 @@ ${t2}`);
         self.postMessage({ type: "loaded", payload: {} });
         return;
       }
+      const fileProgress = {};
       try {
         self.postMessage({ type: "progress", payload: { progress: 0, message: "\uBAA8\uB378 \uCD08\uAE30\uD654 \uC911..." } });
         extractor = await pipeline("feature-extraction", MODEL_ID, {
           progress_callback: (info) => {
-            const pct = Math.round((info == null ? void 0 : info.progress) ?? 0);
+            if (info.file) {
+              if (!fileProgress[info.file]) {
+                fileProgress[info.file] = { loaded: 0, total: 0 };
+              }
+              if (info.total) fileProgress[info.file].total = info.total;
+              if (info.loaded !== void 0) fileProgress[info.file].loaded = info.loaded;
+              if (info.status === "done") {
+                fileProgress[info.file].loaded = fileProgress[info.file].total;
+              }
+            }
+            const allFiles = Object.values(fileProgress);
+            const totalBytes = allFiles.reduce((s, f) => s + f.total, 0);
+            const loadedBytes = allFiles.reduce((s, f) => s + f.loaded, 0);
+            const pct = totalBytes > 0 ? Math.round(loadedBytes / totalBytes * 100) : Math.round((info == null ? void 0 : info.progress) ?? 0);
             self.postMessage({
               type: "progress",
               payload: { progress: pct, message: (info == null ? void 0 : info.status) ?? "\uB2E4\uC6B4\uB85C\uB4DC \uC911..." }

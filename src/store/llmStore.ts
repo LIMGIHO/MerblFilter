@@ -42,6 +42,8 @@ export interface LlmStore {
   phase1Status: ModelStatus;
   phase1Progress: number;
   phase1Error: string | null;
+  phase1HasDownloaded: boolean;   // 한 번이라도 다운 완료 여부 (persisted)
+  phase1ScoreThreshold: number;   // 필터 커트라인 0~100 (persisted, default 50)
 
   // Phase 2 (WebLLM — 요약/프롬프트)
   phase2Enabled: boolean;
@@ -57,6 +59,8 @@ export interface LlmStore {
   setPhase1Status: (s: ModelStatus) => void;
   setPhase1Progress: (p: number) => void;
   setPhase1Error: (e: string | null) => void;
+  setPhase1HasDownloaded: (v: boolean) => void;
+  setPhase1ScoreThreshold: (v: number) => void;
 
   setPhase2Enabled: (v: boolean) => void;
   setPhase2Status: (s: ModelStatus) => void;
@@ -75,6 +79,8 @@ export const useLlmStore = create<LlmStore>()(
       phase1Status: 'idle',
       phase1Progress: 0,
       phase1Error: null,
+      phase1HasDownloaded: false,
+      phase1ScoreThreshold: 50,
 
       phase2Enabled: false,
       phase2Status: 'idle',
@@ -89,6 +95,8 @@ export const useLlmStore = create<LlmStore>()(
       setPhase1Status: (s) => set({ phase1Status: s }),
       setPhase1Progress: (p) => set({ phase1Progress: p }),
       setPhase1Error: (e) => set({ phase1Error: e }),
+      setPhase1HasDownloaded: (v) => set({ phase1HasDownloaded: v }),
+      setPhase1ScoreThreshold: (v) => set({ phase1ScoreThreshold: v }),
 
       setPhase2Enabled: (v) => set({ phase2Enabled: v }),
       setPhase2Status: (s) => set({ phase2Status: s }),
@@ -120,6 +128,8 @@ export const useLlmStore = create<LlmStore>()(
       },
       partialize: (s) => ({
         phase1Enabled: s.phase1Enabled,
+        phase1HasDownloaded: s.phase1HasDownloaded,
+        phase1ScoreThreshold: s.phase1ScoreThreshold,
         phase2Enabled: s.phase2Enabled,
         phase2ModelId: s.phase2ModelId,
         phase2HasDownloaded: s.phase2HasDownloaded,

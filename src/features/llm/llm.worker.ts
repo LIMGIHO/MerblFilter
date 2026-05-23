@@ -157,12 +157,40 @@ self.onmessage = async (event: MessageEvent) => {
       return;
     }
 
+    const fileProgress: Record<string, { loaded: number; total: number }> = {};
+
     try {
       self.postMessage({ type: 'progress', payload: { progress: 0, message: '모델 초기화 중...' } });
 
       extractor = await pipeline('feature-extraction', MODEL_ID, {
-        progress_callback: (info: { progress?: number; status?: string }) => {
-          const pct = Math.round(info?.progress ?? 0);
+        progress_callback: (info: {
+          progress?: number;
+          status?: string;
+          file?: string;
+          loaded?: number;
+          total?: number;
+        }) => {
+          // Accumulate per-file bytes
+          if (info.file) {
+            if (!fileProgress[info.file]) {
+              fileProgress[info.file] = { loaded: 0, total: 0 };
+            }
+            if (info.total) fileProgress[info.file].total = info.total;
+            if (info.loaded !== undefined) fileProgress[info.file].loaded = info.loaded;
+            if (info.status === 'done') {
+              // Mark file complete
+              fileProgress[info.file].loaded = fileProgress[info.file].total;
+            }
+          }
+
+          // Compute overall progress from cumulative bytes
+          const allFiles = Object.values(fileProgress);
+          const totalBytes = allFiles.reduce((s, f) => s + f.total, 0);
+          const loadedBytes = allFiles.reduce((s, f) => s + f.loaded, 0);
+          const pct = totalBytes > 0
+            ? Math.round((loadedBytes / totalBytes) * 100)
+            : Math.round(info?.progress ?? 0);
+
           self.postMessage({
             type: 'progress',
             payload: { progress: pct, message: info?.status ?? '다운로드 중...' },
