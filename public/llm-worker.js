@@ -28904,49 +28904,107 @@ ${t2}`);
   // src/features/llm/llm.worker.ts
   env.useBrowserCache = true;
   env.allowLocalModels = false;
-  env.backends.onnx.wasm.wasmPaths = "/wasm/";
+  var _pageOrigin = (() => {
+    const href = self.location.href;
+    try {
+      return new URL(href.startsWith("blob:") ? href.slice(5) : href).origin;
+    } catch {
+      return self.location.origin;
+    }
+  })();
+  env.backends.onnx.wasm.wasmPaths = `${_pageOrigin}/wasm/`;
   env.backends.onnx.wasm.numThreads = 1;
+  var MODEL_ID = "Xenova/paraphrase-multilingual-MiniLM-L12-v2";
+  var SHOW_EXAMPLES = [
+    // 경험공유
+    { text: "\uC800\uB3C4 \uC9C0\uBC29\uC5D0\uC11C \uC62C\uB77C\uC640\uC11C \uCC98\uC74C\uC5D4 \uC815\uB9D0 \uB9C9\uB9C9\uD588\uB294\uB370 \uACF5\uAC10\uC774 \uB9CE\uC774 \uB429\uB2C8\uB2E4", tag: "\uACBD\uD5D8\uACF5\uC720" },
+    { text: "\uC800 \uC5ED\uC2DC \uBE44\uC2B7\uD55C \uC0C1\uD669\uC744 \uACAA\uC5C8\uB294\uB370 \uADF8\uB54C \uC774 \uAE00\uC744 \uC77D\uC5C8\uB354\uB77C\uBA74 \uC88B\uC558\uC744 \uAC83 \uAC19\uC544\uC694", tag: "\uACBD\uD5D8\uACF5\uC720" },
+    { text: "15\uB144 \uC804 \uC77C\uC778\uB370 \uC544\uC9C1\uB3C4 \uADF8\uB54C \uAE30\uC5B5\uC774 \uC0DD\uC0DD\uD558\uB124\uC694", tag: "\uACBD\uD5D8\uACF5\uC720" },
+    { text: "\uC6B0\uB9AC \uC544\uC774\uB3C4 \uC791\uB144\uC5D0 \uBE44\uC2B7\uD55C \uC77C\uC774 \uC788\uC5C8\uB294\uB370 \uC815\uB9D0 \uD798\uB4E4\uC5C8\uAC70\uB4E0\uC694", tag: "\uACBD\uD5D8\uACF5\uC720" },
+    { text: "\uC800\uB3C4 \uC608\uC804\uC5D0 \uC774\uB7F0 \uC120\uD0DD\uC758 \uAE30\uB85C\uC5D0\uC11C \uACE0\uBBFC\uD588\uB294\uB370 \uACB0\uAD6D \uC774\uCABD\uC744 \uC120\uD0DD\uD588\uC5B4\uC694", tag: "\uACBD\uD5D8\uACF5\uC720" },
+    { text: "\uC81C\uAC00 \uACAA\uC5B4\uBCF4\uB2C8 \uC0DD\uAC01\uBCF4\uB2E4 \uD6E8\uC52C \uC5B4\uB835\uB354\uB77C\uACE0\uC694", tag: "\uACBD\uD5D8\uACF5\uC720" },
+    { text: "\uC800\uB294 \uB2E4\uB978 \uBC29\uD5A5\uC744 \uC120\uD0DD\uD588\uB294\uB370 \uC9C0\uAE08 \uB3CC\uC544\uBCF4\uBA74 \uD6C4\uD68C\uAC00 \uB418\uAE30\uB3C4 \uD574\uC694", tag: "\uACBD\uD5D8\uACF5\uC720" },
+    { text: "\uC800\uB3C4 \uD55C\uB54C \uC774 \uBB38\uC81C\uB85C \uC815\uB9D0 \uB9CE\uC774 \uACE0\uBBFC\uD588\uC5C8\uC5B4\uC694", tag: "\uACBD\uD5D8\uACF5\uC720" },
+    // 의견있음
+    { text: "\uAC1C\uC778\uC801\uC73C\uB85C \uC774 \uBD80\uBD84\uC740 \uC870\uAE08 \uB2E4\uB974\uAC8C \uC0DD\uAC01\uD574\uC694", tag: "\uC758\uACAC\uC788\uC74C" },
+    { text: "\uC81C \uC0DD\uAC01\uC5D4 \uC774\uAC83\uBCF4\uB2E4 \uC800 \uBC29\uBC95\uC774 \uB354 \uB098\uC744 \uAC83 \uAC19\uAE30\uB3C4 \uD55C\uB370\uC694", tag: "\uC758\uACAC\uC788\uC74C" },
+    { text: "\uC88B\uC740 \uAE00\uC778\uB370 \uD55C \uAC00\uC9C0 \uC544\uC26C\uC6B4 \uC810\uC740 \uAD6C\uCCB4\uC801\uC778 \uC0AC\uB840\uAC00 \uC5C6\uB2E4\uB294 \uAC70\uC608\uC694", tag: "\uC758\uACAC\uC788\uC74C" },
+    { text: "\uB3D9\uC758\uD558\uB294 \uBD80\uBD84\uB3C4 \uC788\uC9C0\uB9CC \uD604\uC2E4\uC801\uC73C\uB85C \uC27D\uC9C0 \uC54A\uC740 \uCE21\uBA74\uB3C4 \uC788\uC8E0", tag: "\uC758\uACAC\uC788\uC74C" },
+    { text: "\uC774\uB7F0 \uC2DC\uAC01\uB3C4 \uC788\uAD6C\uB098 \uC2F6\uC5C8\uC5B4\uC694. \uC800\uB294 \uBC18\uB300\uB85C \uC0DD\uAC01\uD558\uACE0 \uC788\uC5C8\uAC70\uB4E0\uC694", tag: "\uC758\uACAC\uC788\uC74C" },
+    { text: "\uD56D\uC0C1 \uC88B\uC740 \uAE00 \uAC10\uC0AC\uD55C\uB370 \uC774\uBC88\uC5D4 \uC0B4\uC9DD \uC544\uC26C\uC6E0\uC5B4\uC694", tag: "\uC758\uACAC\uC788\uC74C" },
+    { text: "\uB9D0\uC500\uD558\uC2E0 \uBC29\uBC95 \uC678\uC5D0 \uB2E4\uB978 \uBC29\uBC95\uB3C4 \uC788\uC744 \uAC83 \uAC19\uC544\uC11C\uC694", tag: "\uC758\uACAC\uC788\uC74C" }
+  ];
+  var HIDE_EXAMPLES = [
+    "\uB180\uB790\uC5B4\uC694!",
+    "\uAC10\uC0AC\uD569\uB2C8\uB2E4 \uC798 \uBD24\uC5B4\uC694",
+    "\uCCA0\uB801\uD588\uC2B5\uB2C8\uB2E4",
+    "\u314E\u314E \uC88B\uC740 \uAE00\uC774\uB124\uC694",
+    "\uAE5C\uC9DD \uB180\uB790\uC5B4\uC694^^",
+    "\uC798 \uBD24\uC2B5\uB2C8\uB2E4~",
+    "\uC624\uB298\uB3C4 \uC88B\uC740 \uAE00 \uAC10\uC0AC\uD574\uC694",
+    "\uC751\uC6D0\uD569\uB2C8\uB2E4!",
+    "\uD654\uC774\uD305\uC774\uC694",
+    "\uD5C9 \uC800\uB3C4 \uBAB0\uB790\uC5B4\uC694"
+  ];
+  var SPAM_KEYWORDS = ["\uAD6C\uB3C5", "\uBC29\uBB38\uD574\uC8FC\uC138\uC694", "\uB180\uB7EC\uC624\uC138\uC694", "\uC774\uC6C3\uCD94\uAC00"];
+  var NOISE_ONLY_PATTERN = /^[ㅎㅋㅠㅜㅡ~^.!?\s]+$/;
+  function prefilter(text) {
+    if (text.length < 15) return { filtered: true, label: "noise", score: 5, tag: "noise" };
+    if (NOISE_ONLY_PATTERN.test(text)) return { filtered: true, label: "noise", score: 5, tag: "noise" };
+    if (SPAM_KEYWORDS.some((k) => text.includes(k))) return { filtered: true, label: "spam", score: 0, tag: "spam" };
+    return null;
+  }
   function stripHtml(html) {
     return html.replace(/<br\s*\/?>/gi, " ").replace(/<[^>]+>/g, "").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/\s{2,}/g, " ").trim();
   }
-  function computeLabel(scores) {
-    const WEIGHTS = {
-      "1 star": -2,
-      "2 stars": -1,
-      "3 stars": 0,
-      "4 stars": 1,
-      "5 stars": 2,
-      // fallback for non-star models
-      "very negative": -2,
-      "negative": -1,
-      "neutral": 0,
-      "positive": 1,
-      "very positive": 2
-    };
-    let weighted = 0;
-    let topScore = 0;
-    for (const s of scores) {
-      const w = WEIGHTS[s.label.toLowerCase()] ?? 0;
-      weighted += w * s.score;
-      if (s.score > topScore) topScore = s.score;
+  function cosineSimilarity(a, b) {
+    let dot = 0, normA = 0, normB = 0;
+    for (let i = 0; i < a.length; i++) {
+      dot += a[i] * b[i];
+      normA += a[i] * a[i];
+      normB += b[i] * b[i];
     }
-    if (weighted <= -1) return { label: "negative", score: topScore };
-    if (weighted >= 0.5) return { label: "positive", score: topScore };
-    return { label: "neutral", score: topScore };
+    if (normA === 0 || normB === 0) return 0;
+    return dot / (Math.sqrt(normA) * Math.sqrt(normB));
   }
-  var classifier = null;
-  var currentModelId = "";
+  async function embed(extractor2, text) {
+    const output = await extractor2(
+      text,
+      { pooling: "mean", normalize: true }
+    );
+    return Array.from(output.data);
+  }
+  function classifyByEmbedding(commentVec, showEmbeddings2, hideEmbeddings2) {
+    const showScores = showEmbeddings2.map((e) => ({
+      sim: cosineSimilarity(commentVec, e.vec),
+      tag: e.tag
+    }));
+    const hideScores = hideEmbeddings2.map((v) => cosineSimilarity(commentVec, v));
+    const bestShow = showScores.reduce((a, b) => a.sim > b.sim ? a : b);
+    const bestHide = Math.max(...hideScores);
+    if (bestShow.sim < 0.4 && bestHide < 0.4) {
+      return { label: "worth_reading", score: 50, tag: "\uACBD\uD5D8\uACF5\uC720" };
+    }
+    const raw = (bestShow.sim - bestHide + 1) / 2;
+    const score = Math.round(Math.max(0, Math.min(100, raw * 100)));
+    if (score >= 50) {
+      return { label: "worth_reading", score, tag: bestShow.tag };
+    }
+    return { label: "noise", score, tag: "noise" };
+  }
+  var extractor = null;
+  var showEmbeddings = null;
+  var hideEmbeddings = null;
   self.onmessage = async (event) => {
     const { type, payload } = event.data;
     if (type === "load") {
-      const modelId = payload.modelId ?? "Xenova/bert-base-multilingual-uncased-sentiment";
-      if (classifier && currentModelId === modelId) {
-        self.postMessage({ type: "loaded", payload: { modelId } });
+      if (extractor && showEmbeddings && hideEmbeddings) {
+        self.postMessage({ type: "loaded", payload: {} });
         return;
       }
       try {
         self.postMessage({ type: "progress", payload: { progress: 0, message: "\uBAA8\uB378 \uCD08\uAE30\uD654 \uC911..." } });
-        classifier = await pipeline("sentiment-analysis", modelId, {
+        extractor = await pipeline("feature-extraction", MODEL_ID, {
           progress_callback: (info) => {
             const pct = Math.round((info == null ? void 0 : info.progress) ?? 0);
             self.postMessage({
@@ -28955,56 +29013,52 @@ ${t2}`);
             });
           }
         });
-        currentModelId = modelId;
-        self.postMessage({ type: "loaded", payload: { modelId } });
+        self.postMessage({ type: "progress", payload: { progress: 100, message: "\uC608\uC2DC \uC784\uBCA0\uB529 \uC900\uBE44 \uC911..." } });
+        showEmbeddings = await Promise.all(
+          SHOW_EXAMPLES.map(async (e) => ({
+            vec: await embed(extractor, e.text),
+            tag: e.tag
+          }))
+        );
+        hideEmbeddings = await Promise.all(HIDE_EXAMPLES.map((t) => embed(extractor, t)));
+        self.postMessage({ type: "loaded", payload: {} });
       } catch (err) {
         self.postMessage({ type: "error", payload: { message: String(err) } });
       }
     }
     if (type === "classify") {
-      if (!classifier) {
+      if (!extractor || !showEmbeddings || !hideEmbeddings) {
         self.postMessage({ type: "error", payload: { message: "\uBAA8\uB378\uC774 \uB85C\uB4DC\uB418\uC9C0 \uC54A\uC558\uC2B5\uB2C8\uB2E4" } });
         return;
       }
       const comments = payload.comments;
-      const batchSize = 16;
       const results = [];
-      const SKIP_PATTERNS = /^(감사합니다|고맙습니다|ㄱㄱ|ㅎㅎ+|ㅋㅋ+|ㅠㅠ+|굿|good|좋아요|좋네요|잘봤습니다|잘 봤습니다|수고하세요|수고요|넵|네|응원합니다|화이팅|파이팅)[.!~^]*$/i;
-      const MIN_CHARS = 8;
-      for (let i = 0; i < comments.length; i += batchSize) {
-        const batch = comments.slice(i, i + batchSize);
-        const texts = batch.map((c) => stripHtml(c.contents).slice(0, 512));
-        const toClassify = [];
-        const skipped = [];
-        for (let j = 0; j < batch.length; j++) {
-          const clean = texts[j];
-          if (clean.length < MIN_CHARS || SKIP_PATTERNS.test(clean.trim())) {
-            skipped.push(batch[j]);
-          } else {
-            toClassify.push(batch[j]);
+      for (let i = 0; i < comments.length; i++) {
+        const c = comments[i];
+        const text = stripHtml(c.contents).slice(0, 512);
+        const pre = prefilter(text);
+        if (pre) {
+          results.push({ commentNo: c.commentNo, label: pre.label, score: pre.score, tag: pre.tag });
+        } else {
+          try {
+            const vec = await embed(extractor, text);
+            const result = classifyByEmbedding(vec, showEmbeddings, hideEmbeddings);
+            results.push({ commentNo: c.commentNo, ...result });
+          } catch {
+            results.push({ commentNo: c.commentNo, label: "worth_reading", score: 50, tag: "\uACBD\uD5D8\uACF5\uC720" });
           }
         }
-        skipped.forEach((c) => results.push({ commentNo: c.commentNo, label: "neutral", score: 1 }));
-        if (toClassify.length === 0) continue;
-        try {
-          const classifyTexts = toClassify.map((c) => stripHtml(c.contents).slice(0, 512));
-          const outputs = await classifier(classifyTexts, { topk: 5 });
-          for (let j = 0; j < toClassify.length; j++) {
-            const allScores = outputs[j];
-            const { label, score } = computeLabel(allScores);
-            results.push({ commentNo: toClassify[j].commentNo, label, score });
-          }
-        } catch {
-          toClassify.forEach((c) => results.push({ commentNo: c.commentNo, label: "neutral", score: 0 }));
+        if (i % 10 === 0 || i === comments.length - 1) {
+          const pct = Math.round((i + 1) / comments.length * 100);
+          self.postMessage({ type: "classify_progress", payload: { progress: pct } });
         }
-        const pct = Math.round((i + batch.length) / comments.length * 100);
-        self.postMessage({ type: "classify_progress", payload: { progress: pct } });
       }
       self.postMessage({ type: "classify_result", payload: { results } });
     }
     if (type === "unload") {
-      classifier = null;
-      currentModelId = "";
+      extractor = null;
+      showEmbeddings = null;
+      hideEmbeddings = null;
       self.postMessage({ type: "unloaded" });
     }
   };

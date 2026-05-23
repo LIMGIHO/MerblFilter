@@ -1,23 +1,82 @@
 /// <reference lib="webworker" />
 import { pipeline, env } from '@xenova/transformers';
 
-// Transformers.js 설정
-// IndexedDB 캐시 사용 (브라우저 내 저장)
+// ── 환경 설정 ─────────────────────────────────────────────────────────
 env.useBrowserCache = true;
 env.allowLocalModels = false;
 
-// WASM 파일을 CDN(jsDelivr) 대신 self-hosted 경로에서 로드
-// CDN이 COEP credentialless Worker 환경에서 막히는 문제 방지
-env.backends.onnx.wasm.wasmPaths = '/wasm/';
-
-// 멀티스레드 비활성화: ort-wasm-threaded.worker.js 파일이 없으면
-// ONNX Runtime이 Worker 초기화를 무한 대기함 → numThreads=1로 단일스레드 강제
-// BERT 감성분류 정도는 단일스레드로도 충분히 동작
+// Blob Worker 대응: self.location.href = 'blob:http://...'
+// 상대 경로 '/wasm/'은 blob URL 기준으로 해석 불가 → origin 추출 후 절대 URL 구성
+const _pageOrigin = (() => {
+  const href = (self as unknown as WorkerGlobalScope).location.href;
+  try {
+    return new URL(href.startsWith('blob:') ? href.slice(5) : href).origin;
+  } catch {
+    return (self as unknown as WorkerGlobalScope).location.origin;
+  }
+})();
+env.backends.onnx.wasm.wasmPaths = `${_pageOrigin}/wasm/`;
 (env.backends.onnx.wasm as Record<string, unknown>).numThreads = 1;
 
-type LlmLabel = 'spam' | 'promo' | 'negative' | 'neutral' | 'positive';
+// ── 모델 ID ───────────────────────────────────────────────────────────
+const MODEL_ID = 'Xenova/paraphrase-multilingual-MiniLM-L12-v2';
 
-// HTML 태그 제거 (댓글 contents에 <br> 등 포함될 수 있음)
+// ── 예시 세트 ─────────────────────────────────────────────────────────
+const SHOW_EXAMPLES: Array<{ text: string; tag: '경험공유' | '의견있음' }> = [
+  // 경험공유
+  { text: '저도 지방에서 올라와서 처음엔 정말 막막했는데 공감이 많이 됩니다', tag: '경험공유' },
+  { text: '저 역시 비슷한 상황을 겪었는데 그때 이 글을 읽었더라면 좋았을 것 같아요', tag: '경험공유' },
+  { text: '15년 전 일인데 아직도 그때 기억이 생생하네요', tag: '경험공유' },
+  { text: '우리 아이도 작년에 비슷한 일이 있었는데 정말 힘들었거든요', tag: '경험공유' },
+  { text: '저도 예전에 이런 선택의 기로에서 고민했는데 결국 이쪽을 선택했어요', tag: '경험공유' },
+  { text: '제가 겪어보니 생각보다 훨씬 어렵더라고요', tag: '경험공유' },
+  { text: '저는 다른 방향을 선택했는데 지금 돌아보면 후회가 되기도 해요', tag: '경험공유' },
+  { text: '저도 한때 이 문제로 정말 많이 고민했었어요', tag: '경험공유' },
+  // 의견있음
+  { text: '개인적으로 이 부분은 조금 다르게 생각해요', tag: '의견있음' },
+  { text: '제 생각엔 이것보다 저 방법이 더 나을 것 같기도 한데요', tag: '의견있음' },
+  { text: '좋은 글인데 한 가지 아쉬운 점은 구체적인 사례가 없다는 거예요', tag: '의견있음' },
+  { text: '동의하는 부분도 있지만 현실적으로 쉽지 않은 측면도 있죠', tag: '의견있음' },
+  { text: '이런 시각도 있구나 싶었어요. 저는 반대로 생각하고 있었거든요', tag: '의견있음' },
+  { text: '항상 좋은 글 감사한데 이번엔 살짝 아쉬웠어요', tag: '의견있음' },
+  { text: '말씀하신 방법 외에 다른 방법도 있을 것 같아서요', tag: '의견있음' },
+];
+
+const HIDE_EXAMPLES: string[] = [
+  '놀랐어요!',
+  '감사합니다 잘 봤어요',
+  '철렁했습니다',
+  'ㅎㅎ 좋은 글이네요',
+  '깜짝 놀랐어요^^',
+  '잘 봤습니다~',
+  '오늘도 좋은 글 감사해요',
+  '응원합니다!',
+  '화이팅이요',
+  '헉 저도 몰랐어요',
+];
+
+// ── 전처리 필터 ───────────────────────────────────────────────────────
+const SPAM_KEYWORDS = ['구독', '방문해주세요', '놀러오세요', '이웃추가'];
+const NOISE_ONLY_PATTERN = /^[ㅎㅋㅠㅜㅡ~^.!?\s]+$/;
+
+type QualityLabel = 'worth_reading' | 'noise' | 'spam';
+type QualityTag = '경험공유' | '의견있음' | 'noise' | 'spam';
+
+interface PrefilterResult {
+  filtered: true;
+  label: QualityLabel;
+  score: number;
+  tag: QualityTag;
+}
+
+function prefilter(text: string): PrefilterResult | null {
+  if (text.length < 15) return { filtered: true, label: 'noise', score: 5, tag: 'noise' };
+  if (NOISE_ONLY_PATTERN.test(text)) return { filtered: true, label: 'noise', score: 5, tag: 'noise' };
+  if (SPAM_KEYWORDS.some((k) => text.includes(k))) return { filtered: true, label: 'spam', score: 0, tag: 'spam' };
+  return null;
+}
+
+// ── HTML 제거 ─────────────────────────────────────────────────────────
 function stripHtml(html: string): string {
   return html
     .replace(/<br\s*\/?>/gi, ' ')
@@ -28,56 +87,80 @@ function stripHtml(html: string): string {
     .trim();
 }
 
-// 1~5star 전체 확률분포 가중평균으로 레이블 결정
-// topk=5 결과: [{label:'1 star', score:0.x}, {label:'2 stars', score:0.x}, ...]
-// 가중치: 1star=-2, 2star=-1, 3star=0, 4star=+1, 5star=+2
-// 블로그 댓글 특성상 negative 기준을 엄격하게, positive는 조금 너그럽게
-function computeLabel(scores: Array<{ label: string; score: number }>): { label: LlmLabel; score: number } {
-  const WEIGHTS: Record<string, number> = {
-    '1 star': -2, '2 stars': -1, '3 stars': 0, '4 stars': 1, '5 stars': 2,
-    // fallback for non-star models
-    'very negative': -2, 'negative': -1, 'neutral': 0, 'positive': 1, 'very positive': 2,
-  };
-
-  let weighted = 0;
-  let topScore = 0;
-  for (const s of scores) {
-    const w = WEIGHTS[s.label.toLowerCase()] ?? 0;
-    weighted += w * s.score;
-    if (s.score > topScore) topScore = s.score;
+// ── 코사인 유사도 ─────────────────────────────────────────────────────
+function cosineSimilarity(a: number[], b: number[]): number {
+  let dot = 0, normA = 0, normB = 0;
+  for (let i = 0; i < a.length; i++) {
+    dot += a[i] * b[i];
+    normA += a[i] * a[i];
+    normB += b[i] * b[i];
   }
-
-  // weighted 범위: -2 ~ +2
-  // 블로그 댓글 기준:
-  //   -1.0 이하 → 부정 (1~2star 위주)
-  //   +0.5 이상 → 긍정 (4~5star 위주)
-  //   그 외 → 중립
-  if (weighted <= -1.0) return { label: 'negative', score: topScore };
-  if (weighted >= 0.5)  return { label: 'positive', score: topScore };
-  return { label: 'neutral', score: topScore };
+  if (normA === 0 || normB === 0) return 0;
+  return dot / (Math.sqrt(normA) * Math.sqrt(normB));
 }
 
-let classifier: Awaited<ReturnType<typeof pipeline>> | null = null;
-let currentModelId = '';
+// ── 임베딩 추출 헬퍼 ─────────────────────────────────────────────────
+async function embed(extractor: Awaited<ReturnType<typeof pipeline>>, text: string): Promise<number[]> {
+  const output = await (extractor as (t: string, opts: object) => Promise<{ data: Float32Array }>)(
+    text,
+    { pooling: 'mean', normalize: true }
+  );
+  return Array.from(output.data);
+}
 
+// ── 임베딩 기반 분류 ──────────────────────────────────────────────────
+function classifyByEmbedding(
+  commentVec: number[],
+  showEmbeddings: Array<{ vec: number[]; tag: '경험공유' | '의견있음' }>,
+  hideEmbeddings: number[][]
+): { label: QualityLabel; score: number; tag: QualityTag } {
+  const showScores = showEmbeddings.map((e) => ({
+    sim: cosineSimilarity(commentVec, e.vec),
+    tag: e.tag,
+  }));
+  const hideScores = hideEmbeddings.map((v) => cosineSimilarity(commentVec, v));
+
+  const bestShow = showScores.reduce((a, b) => (a.sim > b.sim ? a : b));
+  const bestHide = Math.max(...hideScores);
+
+  // 어느 예시와도 유사도가 낮으면 기본값 SHOW (안전 처리)
+  if (bestShow.sim < 0.4 && bestHide < 0.4) {
+    return { label: 'worth_reading', score: 50, tag: '경험공유' };
+  }
+
+  // -1~1 범위의 차이를 0~100 으로 정규화
+  const raw = (bestShow.sim - bestHide + 1) / 2;
+  const score = Math.round(Math.max(0, Math.min(100, raw * 100)));
+
+  if (score >= 50) {
+    return { label: 'worth_reading', score, tag: bestShow.tag };
+  }
+  return { label: 'noise', score, tag: 'noise' };
+}
+
+// ── 상태 ──────────────────────────────────────────────────────────────
+let extractor: Awaited<ReturnType<typeof pipeline>> | null = null;
+let showEmbeddings: Array<{ vec: number[]; tag: '경험공유' | '의견있음' }> | null = null;
+let hideEmbeddings: number[][] | null = null;
+
+// ── 메시지 핸들러 ─────────────────────────────────────────────────────
 self.onmessage = async (event: MessageEvent) => {
   const { type, payload } = event.data as {
     type: 'load' | 'classify' | 'unload';
     payload: Record<string, unknown>;
   };
 
+  // ── load ────────────────────────────────────────────────────────────
   if (type === 'load') {
-    const modelId = (payload.modelId as string) ?? 'Xenova/bert-base-multilingual-uncased-sentiment';
-
-    if (classifier && currentModelId === modelId) {
-      self.postMessage({ type: 'loaded', payload: { modelId } });
+    if (extractor && showEmbeddings && hideEmbeddings) {
+      self.postMessage({ type: 'loaded', payload: {} });
       return;
     }
 
     try {
       self.postMessage({ type: 'progress', payload: { progress: 0, message: '모델 초기화 중...' } });
 
-      classifier = await pipeline('sentiment-analysis', modelId, {
+      extractor = await pipeline('feature-extraction', MODEL_ID, {
         progress_callback: (info: { progress?: number; status?: string }) => {
           const pct = Math.round(info?.progress ?? 0);
           self.postMessage({
@@ -87,76 +170,68 @@ self.onmessage = async (event: MessageEvent) => {
         },
       });
 
-      currentModelId = modelId;
-      self.postMessage({ type: 'loaded', payload: { modelId } });
+      // 예시 임베딩 사전 계산 (모델 로드 직후 1회)
+      self.postMessage({ type: 'progress', payload: { progress: 100, message: '예시 임베딩 준비 중...' } });
+
+      showEmbeddings = await Promise.all(
+        SHOW_EXAMPLES.map(async (e) => ({
+          vec: await embed(extractor!, e.text),
+          tag: e.tag,
+        }))
+      );
+      hideEmbeddings = await Promise.all(HIDE_EXAMPLES.map((t) => embed(extractor!, t)));
+
+      self.postMessage({ type: 'loaded', payload: {} });
     } catch (err) {
       self.postMessage({ type: 'error', payload: { message: String(err) } });
     }
   }
 
+  // ── classify ────────────────────────────────────────────────────────
   if (type === 'classify') {
-    if (!classifier) {
+    if (!extractor || !showEmbeddings || !hideEmbeddings) {
       self.postMessage({ type: 'error', payload: { message: '모델이 로드되지 않았습니다' } });
       return;
     }
 
     const comments = payload.comments as Array<{ commentNo: number; contents: string }>;
-    const batchSize = 16;
-    const results: Array<{ commentNo: number; label: LlmLabel; score: number }> = [];
+    const results: Array<{ commentNo: number; label: QualityLabel; score: number; tag: QualityTag }> = [];
 
-    // 단순 인사·짧은 댓글은 분류 불필요 → neutral 처리
-    const SKIP_PATTERNS = /^(감사합니다|고맙습니다|ㄱㄱ|ㅎㅎ+|ㅋㅋ+|ㅠㅠ+|굿|good|좋아요|좋네요|잘봤습니다|잘 봤습니다|수고하세요|수고요|넵|네|응원합니다|화이팅|파이팅)[.!~^]*$/i;
-    const MIN_CHARS = 8; // 8자 미만은 분류 의미 없음
+    for (let i = 0; i < comments.length; i++) {
+      const c = comments[i];
+      const text = stripHtml(c.contents).slice(0, 512);
 
-    for (let i = 0; i < comments.length; i += batchSize) {
-      const batch = comments.slice(i, i + batchSize);
-      // HTML 제거 후 512자 제한
-      const texts = batch.map((c) => stripHtml(c.contents).slice(0, 512));
-
-      // 단순/짧은 댓글 사전 필터 → neutral 처리 (분류 불필요)
-      const toClassify: typeof batch = [];
-      const skipped: typeof batch = [];
-      for (let j = 0; j < batch.length; j++) {
-        const clean = texts[j];
-        if (clean.length < MIN_CHARS || SKIP_PATTERNS.test(clean.trim())) {
-          skipped.push(batch[j]);
-        } else {
-          toClassify.push(batch[j]);
+      // 1단계: 전처리 필터
+      const pre = prefilter(text);
+      if (pre) {
+        results.push({ commentNo: c.commentNo, label: pre.label, score: pre.score, tag: pre.tag });
+      } else {
+        // 2단계: 임베딩 유사도
+        try {
+          const vec = await embed(extractor, text);
+          const result = classifyByEmbedding(vec, showEmbeddings, hideEmbeddings);
+          results.push({ commentNo: c.commentNo, ...result });
+        } catch {
+          // 분류 실패 시 안전하게 SHOW 처리
+          results.push({ commentNo: c.commentNo, label: 'worth_reading', score: 50, tag: '경험공유' });
         }
       }
-      skipped.forEach((c) => results.push({ commentNo: c.commentNo, label: 'neutral', score: 1 }));
 
-      if (toClassify.length === 0) continue;
-
-      try {
-        // topk=5: 모든 클래스 확률분포를 가져와 가중평균으로 판정 (top-1 argmax보다 정확)
-        const classifyTexts = toClassify.map((c) => stripHtml(c.contents).slice(0, 512));
-        const outputs = await (classifier as (
-          texts: string[],
-          opts: { topk: number }
-        ) => Promise<Array<Array<{ label: string; score: number }>>>)(classifyTexts, { topk: 5 });
-
-        for (let j = 0; j < toClassify.length; j++) {
-          const allScores = outputs[j];
-          const { label, score } = computeLabel(allScores);
-          results.push({ commentNo: toClassify[j].commentNo, label, score });
-        }
-      } catch {
-        // 배치 실패시 neutral로 처리
-        toClassify.forEach((c) => results.push({ commentNo: c.commentNo, label: 'neutral', score: 0 }));
+      // 진행률 보고 (10개마다)
+      if (i % 10 === 0 || i === comments.length - 1) {
+        const pct = Math.round(((i + 1) / comments.length) * 100);
+        self.postMessage({ type: 'classify_progress', payload: { progress: pct } });
       }
-
-      // 진행률 보고
-      const pct = Math.round(((i + batch.length) / comments.length) * 100);
-      self.postMessage({ type: 'classify_progress', payload: { progress: pct } });
     }
 
     self.postMessage({ type: 'classify_result', payload: { results } });
   }
 
+  // ── unload ──────────────────────────────────────────────────────────
   if (type === 'unload') {
-    classifier = null;
-    currentModelId = '';
+    extractor = null;
+    showEmbeddings = null;
+    hideEmbeddings = null;
     self.postMessage({ type: 'unloaded' });
   }
 };
