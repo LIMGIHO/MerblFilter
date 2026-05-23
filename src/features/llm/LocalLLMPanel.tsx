@@ -53,8 +53,9 @@ export default function LocalLLMPanel({
     const visible = comments.filter((c) => c.replyLevel === 1);
     classify(visible, (results: ClassifyResult[]) => {
       onResultsUpdate(results);
+      onQualityFilterToggle(true); // 분류 완료 시 필터 자동 ON
     });
-  }, [comments, classify, onResultsUpdate]);
+  }, [comments, classify, onResultsUpdate, onQualityFilterToggle]);
 
   const totalClassified = Object.keys(resultMap).length;
   const hiddenCount = Object.values(resultMap).filter(
