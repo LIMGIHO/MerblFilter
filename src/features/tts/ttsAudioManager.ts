@@ -200,7 +200,10 @@ class TTSAudioManager {
 
   seek(time: number) {
     if (this.audio && isFinite(this.audio.duration)) {
-      this.audio.currentTime = Math.max(0, Math.min(time, this.audio.duration));
+      const t = Math.max(0, Math.min(time, this.audio.duration));
+      this.audio.currentTime = t;
+      this._currentTime = t;   // 즉시 상태 업데이트 → controlled input 스냅백 방지
+      this.notify();
     }
   }
 
