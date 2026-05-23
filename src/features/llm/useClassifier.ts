@@ -43,7 +43,7 @@ export function useClassifier(): UseClassifierReturn {
     if (typeof window === 'undefined') return;
 
     let currentWorker: Worker | null = null;
-    const MAX_RETRIES = 5;
+    const MAX_RETRIES = 20; // dev HMR 503 대응: 충분한 재시도 횟수 확보
     let cancelled = false;
 
     const initWorker = () => {
@@ -78,7 +78,9 @@ export function useClassifier(): UseClassifierReturn {
 
         if (retryCountRef.current < MAX_RETRIES) {
           retryCountRef.current++;
-          setTimeout(initWorker, 500 * retryCountRef.current);
+          // 최대 3초 캡: HMR 재빌드 완료를 기다리되 너무 길어지지 않게
+          const delay = 500 * Math.min(retryCountRef.current, 6);
+          setTimeout(initWorker, delay);
           return;
         }
         // 모든 재시도 실패
