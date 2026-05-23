@@ -67,6 +67,11 @@ export default function CommentsPanel({
   const [showAllComments, setShowAllComments] = useState(false);
   const [llmResultMap, setLlmResultMap] = useState<Record<number, LlmResult>>({});
   const [qualityFilterActive, setQualityFilterActive] = useState(false);
+
+  // AI 필터 ON → 전체 탭, OFF → 메르님댓글 탭
+  useEffect(() => {
+    setShowAllComments(qualityFilterActive);
+  }, [qualityFilterActive]);
   const [isResizing, setIsResizing] = useState(false);
   const [isDesktop, setIsDesktop] = useState(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
