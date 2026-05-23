@@ -105,7 +105,7 @@ class TTSAudioManager {
       // MediaSource 스트리밍
       const ms = new MediaSource();
       this.objectUrl = URL.createObjectURL(ms);
-      const audio = new Audio(this.objectUrl);
+      const audio = new Audio(this.objectUrl ?? '');
       audio.playbackRate = this._rate;
       this.audio = audio;
       this._attachListeners(audio, token);

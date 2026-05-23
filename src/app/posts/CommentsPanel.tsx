@@ -9,6 +9,7 @@ import type { QualityLabel, QualityTag, ClassifyResult } from '@/features/llm/us
 import { useLlmStore } from '@/store/llmStore';
 
 const LocalLLMPanel = dynamic(() => import('@/features/llm/LocalLLMPanel'), { ssr: false });
+const CommentsSettingsPanel = dynamic(() => import('./CommentsSettingsPanel'), { ssr: false });
 
 type LlmResult = { label: QualityLabel; score: number; tag: QualityTag };
 
@@ -75,10 +76,9 @@ export default function CommentsPanel({
   const [isResizing, setIsResizing] = useState(false);
   const [isDesktop, setIsDesktop] = useState(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
-  const [showBlockedList, setShowBlockedList] = useState(false);
   const prevPostIdRef = useRef<string>('');
 
-  const { settings, addBlockedUser, removeBlockedUser } = useFilterStore();
+  const { settings, addBlockedUser } = useFilterStore();
   const { phase1ScoreThreshold } = useLlmStore();
 
   function handleBlock(comment: BlogComment) {
@@ -185,8 +185,23 @@ export default function CommentsPanel({
     );
   }
 
+  // 선호 유저 필터
+  function isFavoriteUser(c: BlogComment): boolean {
+    if (settings.favoriteUsers.length === 0) return false;
+    const name = c.userName ?? c.maskedUserName ?? '';
+    const id = c.profileUserId ?? '';
+    return settings.favoriteUsers.some((fav) => name.includes(fav) || id.includes(fav));
+  }
+
   const commentsToShow = baseComments.filter((c) => {
     if (isBlockedUser(c)) return false;
+    // 좋아요 필터 (주인장 제외)
+    if (settings.enableLikeFilter && !isOwnerComment(c)) {
+      if ((c.sympathyCount ?? 0) < settings.minLikes) return false;
+    }
+    // 선호 유저 필터 (주인장 포함 항상 표시)
+    if (settings.enableFavoriteFilter && !isOwnerComment(c) && !isFavoriteUser(c)) return false;
+    // AI 품질 필터
     if (!qualityFilterActive || Object.keys(llmResultMap).length === 0) return true;
     const result = llmResultMap[c.commentNo];
     if (!result) return true;
@@ -266,50 +281,22 @@ export default function CommentsPanel({
               전체
               <span className="ml-1 opacity-70">({comments.length})</span>
             </button>
-            {/* 차단 목록 토글 */}
-            {settings.blockedUsers.length > 0 && (
-              <button
-                onClick={() => setShowBlockedList(v => !v)}
-                className={`text-xs px-2 py-1 rounded-full transition ${showBlockedList ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-500'}`}
-                title="차단 목록 관리"
-              >
-                🚫 {settings.blockedUsers.length}
-              </button>
-            )}
           </div>
-          <LocalLLMPanel
-            comments={comments}
-            onResultsUpdate={(results: ClassifyResult[]) => {
-              const map: Record<number, LlmResult> = {};
-              results.forEach((r) => { map[r.commentNo] = { label: r.label, score: r.score, tag: r.tag }; });
-              setLlmResultMap(map);
-            }}
-            resultMap={llmResultMap}
-            qualityFilterActive={qualityFilterActive}
-            onQualityFilterToggle={setQualityFilterActive}
-          />
+          <div className="flex items-center gap-1.5">
+            <CommentsSettingsPanel />
+            <LocalLLMPanel
+              comments={comments}
+              onResultsUpdate={(results: ClassifyResult[]) => {
+                const map: Record<number, LlmResult> = {};
+                results.forEach((r) => { map[r.commentNo] = { label: r.label, score: r.score, tag: r.tag }; });
+                setLlmResultMap(map);
+              }}
+              resultMap={llmResultMap}
+              qualityFilterActive={qualityFilterActive}
+              onQualityFilterToggle={setQualityFilterActive}
+            />
+          </div>
         </div>
-
-        {/* 차단 목록 관리 패널 */}
-        {showBlockedList && settings.blockedUsers.length > 0 && (
-          <div className="px-4 py-2 border-b border-red-100 dark:border-red-900/30 bg-red-50/50 dark:bg-red-900/10 flex-shrink-0">
-            <div className="text-[10px] text-red-500 dark:text-red-400 font-semibold mb-1.5">차단된 사용자</div>
-            <div className="flex flex-wrap gap-1">
-              {settings.blockedUsers.map((user) => (
-                <span key={user} className="inline-flex items-center gap-1 text-[10px] bg-white dark:bg-slate-800 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-2 py-0.5 rounded-full">
-                  {user}
-                  <button
-                    onClick={() => removeBlockedUser(user)}
-                    className="ml-0.5 text-red-400 hover:text-red-600 dark:hover:text-red-300 leading-none"
-                    title="차단 해제"
-                  >
-                    ×
-                  </button>
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
 
         {/* 마지막 갱신 시간 */}
         {lastRefreshTime && (
