@@ -7,23 +7,22 @@ const BASE_URL = 'https://merbl-filter.vercel.app';
 const OG_IMAGE = `${BASE_URL}/og`;
 
 const DESCRIPTION =
-  '메르(ranto28) 네이버 블로그 전용 AI 뷰어. 경제·부동산·시사 분석 게시글을 AI가 3줄 요약하고, 댓글을 자동 필터·감성 분류합니다. 로컬 LLM으로 완전 무료·무서버 처리.';
+  '네이버 블로그 전용 댓글 필터 & AI 뷰어. 댓글을 자동 필터·감성 분류하고, 게시글을 AI가 요약합니다. 멀티 블로그 지원, 로컬 LLM으로 완전 무료·무서버 처리.';
 
 export const metadata: Metadata = {
   metadataBase: new URL(BASE_URL),
   title: {
-    default: '메르 AI — 경제·시사 분석',
-    template: '%s | 메르 AI',
+    default: '댓글필터 — 네이버 블로그 댓글 분석기',
+    template: '%s | 댓글필터',
   },
   description: DESCRIPTION,
   keywords: [
-    '메르', '메르AI', '메르블로그', '메르의블로그', '메르경제', '메르부동산',
-    'ranto28', 'mer', '메르 ranto28',
-    '경제분석', '부동산분석', '시사분석', '경제블로그',
-    '네이버블로그뷰어', '블로그AI', 'AI요약', '댓글필터', '댓글분석',
-    '로컬LLM', 'WebLLM',
+    '댓글필터', '댓글분석', '댓글분류', '네이버댓글필터', '블로그댓글필터',
+    '메르', '메르블로그', '메르의블로그', '메르경제', 'ranto28',
+    '네이버블로그뷰어', '블로그AI', 'AI요약', '감성분류',
+    '로컬LLM', 'WebLLM', '스팸댓글', '댓글품질',
   ],
-  authors: [{ name: '메르 (ranto28)' }],
+  authors: [{ name: '댓글필터' }],
   alternates: {
     canonical: BASE_URL,
   },
@@ -32,16 +31,16 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     url: BASE_URL,
-    title: '메르 AI — 경제·시사 분석',
+    title: '댓글필터 — 네이버 블로그 댓글 분석기',
     description: DESCRIPTION,
-    siteName: '메르 AI',
+    siteName: '댓글필터',
     locale: 'ko_KR',
     images: [
       {
         url: OG_IMAGE,
         width: 1200,
         height: 630,
-        alt: '메르 AI — 경제·부동산·시사 분석 AI 뷰어',
+        alt: '댓글필터 — 네이버 블로그 댓글 필터 & AI 뷰어',
       },
     ],
   },
@@ -49,7 +48,7 @@ export const metadata: Metadata = {
   // ── Twitter/X 카드 ──
   twitter: {
     card: 'summary_large_image',
-    title: '메르 AI — 경제·시사 분석',
+    title: '댓글필터 — 네이버 블로그 댓글 분석기',
     description: DESCRIPTION,
     images: [OG_IMAGE],
   },
@@ -66,7 +65,7 @@ export const metadata: Metadata = {
     googleBot: { index: true, follow: true, 'max-snippet': -1, 'max-image-preview': 'large' },
   },
 
-  // ── 네이버·구글 인증코드 (발급 후 채워주세요) ──
+  // ── 네이버·구글 인증코드 ──
   verification: {
     google: '6FDyz0MyKHqeMg0rgbUTT6Xd2ceTybyWt9TPfYLsqbU',
     other: {
@@ -83,7 +82,7 @@ const jsonLd = {
       '@type': 'WebSite',
       '@id': `${BASE_URL}/#website`,
       url: BASE_URL,
-      name: '메르 AI',
+      name: '댓글필터',
       description: DESCRIPTION,
       inLanguage: 'ko-KR',
       publisher: { '@id': `${BASE_URL}/#organization` },
@@ -91,7 +90,7 @@ const jsonLd = {
     {
       '@type': 'Organization',
       '@id': `${BASE_URL}/#organization`,
-      name: '메르 AI',
+      name: '댓글필터',
       url: BASE_URL,
       logo: {
         '@type': 'ImageObject',
@@ -101,16 +100,16 @@ const jsonLd = {
     {
       '@type': 'WebApplication',
       '@id': `${BASE_URL}/#webapp`,
-      name: '메르 AI',
+      name: '댓글필터',
       url: BASE_URL,
       description: DESCRIPTION,
       applicationCategory: 'NewsApplication',
       operatingSystem: 'Web Browser',
       offers: { '@type': 'Offer', price: '0', priceCurrency: 'KRW' },
       featureList: [
+        '댓글 자동 필터 & 감성 분류',
         'AI 게시글 요약 (로컬 LLM)',
-        '댓글 감성 분류 (긍정/부정/스팸)',
-        '댓글 필터링',
+        '멀티 블로그 지원',
         '완전 무료·무서버',
       ],
     },

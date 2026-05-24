@@ -1,7 +1,7 @@
 import { ImageResponse } from 'next/og';
 
 export const runtime = 'edge';
-export const alt = '메르의 블로그 — 경제·시사 분석 뷰어';
+export const alt = '댓글필터 — 네이버 블로그 댓글 필터 & AI 뷰어';
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
 
@@ -29,17 +29,17 @@ export default function OGImage() {
               fontWeight: 'bold', marginRight: '16px',
             }}
           >
-            M
+            댓
           </div>
           <span style={{ color: '#5eead4', fontSize: '20px', fontWeight: '600' }}>
-            ranto28.blog.naver.com
+            merbl-filter.vercel.app
           </span>
         </div>
         <div style={{ color: 'white', fontSize: '60px', fontWeight: '700', lineHeight: '1.2', marginBottom: '24px' }}>
-          메르의 블로그
+          댓글필터
         </div>
         <div style={{ color: '#94a3b8', fontSize: '28px', lineHeight: '1.5' }}>
-          경제 · 부동산 · 시사 분석
+          네이버 블로그 댓글 분석 & AI 뷰어
         </div>
         <div style={{
           marginTop: '48px', color: '#64748b', fontSize: '18px',
@@ -49,7 +49,7 @@ export default function OGImage() {
           <span>·</span>
           <span>댓글 필터</span>
           <span>·</span>
-          <span>내 기기에서 실행</span>
+          <span>멀티 블로그</span>
         </div>
       </div>
     ),

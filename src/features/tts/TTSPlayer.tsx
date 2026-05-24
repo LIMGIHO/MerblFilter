@@ -46,7 +46,7 @@ function cleanTextForTTS(text: string): string {
 /**
  * 텍스트를 문장 단위로 ~300자 청크로 분리.
  */
-function splitIntoChunks(text: string, maxChars = 300): string[] {
+function splitIntoChunks(text: string, maxChars = 150): string[] {
   if (!text) return [];
   const re = /[.!?…。？！]\s+/g;
   const parts: string[] = [];
@@ -140,6 +140,9 @@ export default function TTSPlayer() {
 
   // duration이 알려진 청크들의 합 → seek bar max
   const [totalDuration, setTotalDuration] = useState(0);
+  // 전체 청크 수 vs 알려진 수 → 백그라운드 처리 중 여부 표시
+  const [totalChunks,   setTotalChunks]   = useState(0);
+  const [knownChunks,   setKnownChunks]   = useState(0);
 
   const currentItem = items[currentIndex] ?? null;
 
@@ -186,6 +189,11 @@ export default function TTSPlayer() {
         if (!res.ok) return null;
         const blob = await res.blob();
         blobCache.current.set(key, blob);
+        // blobCache 크기 제한 — FIFO 60개 초과 시 가장 오래된 항목 제거
+        if (blobCache.current.size > 60) {
+          const firstKey = blobCache.current.keys().next().value!;
+          blobCache.current.delete(firstKey);
+        }
         return blob;
       } catch { return null; }
       finally   { pendingMap.current.delete(key); }
@@ -195,9 +203,11 @@ export default function TTSPlayer() {
     return promise;
   }, []);
 
-  // ── totalDuration 갱신 헬퍼 ──────────────────────────────────────────────────
+  // ── totalDuration + 알려진 청크 수 갱신 헬퍼 ────────────────────────────────
   const updateTotalDuration = useCallback(() => {
+    const known = chunkDurationsRef.current.filter((d) => d > 0).length;
     const total = chunkDurationsRef.current.reduce((s, d) => s + (d || 0), 0);
+    setKnownChunks(known);
     setTotalDuration(total);
   }, []);
 
@@ -224,10 +234,12 @@ export default function TTSPlayer() {
     if (!chunks.length) { setLoadingBody(false); return; }
 
     // 새 트랙 시작 — 상태 초기화
-    chunkAccumRef.current    = 0;
+    chunkAccumRef.current      = 0;
     currentChunkIdxRef.current = 0;
     chunkDurationsRef.current  = new Array(chunks.length).fill(0);
     setTotalDuration(0);
+    setTotalChunks(chunks.length);
+    setKnownChunks(0);
 
     // 새 세션 발급
     chunkSessionRef.current++;
@@ -258,7 +270,20 @@ export default function TTSPlayer() {
       if (!blob) {
         // 아직 준비 안 됨 — fetch 완료 후 재시도
         getChunkBlob(postId, voiceRef.current, idx, chunks[idx]).then((b) => {
-          if (b && chunkStateRef.current?.sessionId === sessionId) playChunk(idx, seekOffset);
+          if (chunkStateRef.current?.sessionId !== sessionId) return;
+          if (b) {
+            playChunk(idx, seekOffset);
+          } else {
+            // fetch 실패 — 다음 청크로 건너뛰거나 재생 종료
+            if (idx < chunks.length - 1) {
+              playChunk(idx + 1, 0);
+            } else {
+              chunkStateRef.current = null;
+              setTotalChunks(0);
+              setKnownChunks(0);
+              advanceToNext();
+            }
+          }
         });
         return;
       }
@@ -278,14 +303,16 @@ export default function TTSPlayer() {
           chunkStateRef.current    = null;
           chunkAccumRef.current    = 0;
           setTotalDuration(0);
+          setTotalChunks(0);
+          setKnownChunks(0);
           advanceToNext();
         } else {
           playChunk(idx + 1);
         }
       }, seekOffset);
 
-      // 다음 2청크 백그라운드 프리패치 + duration 측정
-      for (let i = idx + 1; i <= Math.min(idx + 2, chunks.length - 1); i++) {
+      // 다음 5청크 백그라운드 프리패치 + duration 측정
+      for (let i = idx + 1; i <= Math.min(idx + 5, chunks.length - 1); i++) {
         const ki = `${postId}::${voiceRef.current}::${i}`;
         if (!blobCache.current.has(ki) && !pendingMap.current.has(ki)) {
           const capturedI = i;
@@ -348,7 +375,12 @@ export default function TTSPlayer() {
   const prevVoiceRef = useRef(voice);
   useEffect(() => {
     if (prevVoiceRef.current === voice) return;
+    const oldVoice = prevVoiceRef.current;
     prevVoiceRef.current = voice;
+    // 이전 목소리 Blob 캐시 정리 (메모리 확보)
+    for (const key of Array.from(blobCache.current.keys())) {
+      if (key.includes(`::${oldVoice}::`)) blobCache.current.delete(key);
+    }
     prefetchRemaining(0, voice);
     if ((status === 'playing' || status === 'paused') && currentItem) {
       lastPlayedIndex.current = -1;
@@ -380,6 +412,8 @@ export default function TTSPlayer() {
     chunkAccumRef.current   = 0;
     playChunkRef.current    = null;
     setTotalDuration(0);
+    setTotalChunks(0);
+    setKnownChunks(0);
     lastPlayedIndex.current = -1;
   }
 
@@ -568,8 +602,11 @@ export default function TTSPlayer() {
                     onChange={handleSeek}
                     className="flex-1 h-1.5 accent-teal-500 cursor-pointer"
                   />
-                  <span className="text-[10px] text-slate-400 dark:text-slate-500 w-8 flex-shrink-0">
-                    {formatTime(seekMax)}
+                  <span className="text-[10px] text-slate-400 dark:text-slate-500 flex-shrink-0 flex items-center gap-1">
+                    {knownChunks < totalChunks && totalChunks > 0 && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-teal-400 animate-pulse" title="음성 처리 중" />
+                    )}
+                    <span className="w-8">{formatTime(seekMax)}</span>
                   </span>
                 </>
               ) : (

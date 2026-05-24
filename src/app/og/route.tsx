@@ -32,7 +32,7 @@ export async function GET() {
           background: 'radial-gradient(circle, rgba(20,184,166,0.10) 0%, transparent 70%)',
         }} />
 
-        {/* ✦ 아이콘 */}
+        {/* 아이콘 */}
         <div style={{
           fontSize: 56,
           color: '#14b8a6',
@@ -47,7 +47,7 @@ export async function GET() {
           color: '#f1f5f9',
           letterSpacing: '-2px',
           marginBottom: 16,
-        }}>메르 AI</div>
+        }}>댓글필터</div>
 
         {/* 서브타이틀 */}
         <div style={{
@@ -55,11 +55,11 @@ export async function GET() {
           color: '#94a3b8',
           marginBottom: 40,
           letterSpacing: '1px',
-        }}>경제 · 부동산 · 시사 분석</div>
+        }}>네이버 블로그 댓글 분석 & AI 뷰어</div>
 
         {/* 태그 배지들 */}
         <div style={{ display: 'flex', gap: 16 }}>
-          {['AI 요약', '댓글 분석', '로컬 LLM', '네이버 블로그'].map((tag) => (
+          {['댓글 필터', 'AI 요약', '멀티 블로그', '로컬 LLM'].map((tag) => (
             <div key={tag} style={{
               padding: '8px 20px',
               borderRadius: 24,
