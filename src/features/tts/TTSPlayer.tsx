@@ -170,11 +170,21 @@ export default function TTSPlayer() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentIndex]);
 
+  // 재생목록 변경 시 전체 항목 백그라운드 프리패치 (현재 재생 중인 항목 제외)
+  useEffect(() => {
+    if (items.length === 0) return;
+    prefetchRemaining(0, voiceRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items]);
+
   // 목소리 변경 시 재생 중/일시정지 상태면 즉시 재시작
   const prevVoiceRef = useRef(voice);
   useEffect(() => {
     if (prevVoiceRef.current === voice) return;
     prevVoiceRef.current = voice;
+    // 새 목소리로 전체 목록 프리패치
+    prefetchRemaining(0, voice);
+    // 재생/일시정지 중이면 즉시 재시작
     if ((status === 'playing' || status === 'paused') && currentItem) {
       lastPlayedIndex.current = -1;
       playCurrentItem(currentItem);
