@@ -85,7 +85,29 @@ class TTSAudioManager {
     this.notify();
   }
 
-  // ── 재생 ─────────────────────────────────────────────────
+  // ── 캐시된 Blob으로 재생 (네트워크 요청 없음) ────────────
+  async playFromBlob(blob: Blob, onEnd?: () => void): Promise<void> {
+    this.cancelToken++;
+    const token = this.cancelToken;
+    this.cleanupAudio();
+    this.onEndCallback = onEnd;
+    this.setStatus('loading');
+    try {
+      if (token !== this.cancelToken) return;
+      this.objectUrl = URL.createObjectURL(blob);
+      this.audio = new Audio(this.objectUrl);
+      this.audio.playbackRate = this._rate;
+      this.audio.volume = this._volume;
+      this._attachListeners(this.audio, token);
+      await this.audio.play();
+      if (token === this.cancelToken) this.setStatus('playing');
+    } catch (err) {
+      console.error('[TTS]', err);
+      if (token === this.cancelToken) this.setStatus('idle');
+    }
+  }
+
+  // ── API 호출로 재생 ───────────────────────────────────────
   async play(text: string, onEnd?: () => void): Promise<void> {
     this.cancelToken++;
     const token = this.cancelToken;

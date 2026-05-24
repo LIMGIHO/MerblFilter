@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useTtsPlaylistStore } from '@/store/ttsPlaylistStore';
 import { useTTS, TTS_VOICES } from '@/features/llm/useTTS';
+import { ttsAudioManager } from './ttsAudioManager';
 import { useUiStore } from '@/store/uiStore';
 
 // HTML 태그 제거
@@ -66,10 +67,13 @@ const RATES = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
 export default function TTSPlayer() {
   const { items, currentIndex, drawerOpen, remove, setCurrentIndex, clear, toggleDrawer } =
     useTtsPlaylistStore();
-  const { isSupported, status, rate, volume, voice, setRate, setVolume, setVoice, play, pause, resume, stop, currentTime, duration, seek } = useTTS();
+  const { isSupported, status, rate, volume, voice, setRate, setVolume, setVoice, pause, resume, stop, currentTime, duration, seek } = useTTS();
   const contentPanelOffset = useUiStore((s) => s.contentPanelOffset);
 
   const bodyCache = useRef<Map<string, string>>(new Map());
+  // 오디오 Blob 캐시 — 키: `${postId}::${voiceId}`
+  const audioBlobCache = useRef<Map<string, Blob>>(new Map());
+  const prefetchingRef = useRef<Set<string>>(new Set());
   const [loadingBody, setLoadingBody] = useState(false);
 
   const currentItem = items[currentIndex] ?? null;
@@ -88,10 +92,36 @@ export default function TTSPlayer() {
     }
   }, []);
 
+  // 오디오 Blob 가져오기 (캐시 우선)
+  const fetchAudioBlob = useCallback(async (
+    postId: string, blogId: string, voiceId: string
+  ): Promise<Blob | null> => {
+    const cacheKey = `${postId}::${voiceId}`;
+    const cached = audioBlobCache.current.get(cacheKey);
+    if (cached) return cached;
+    try {
+      const body = await fetchBody(postId, blogId);
+      if (!body) return null;
+      const res = await fetch('/api/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: body, voice: voiceId }),
+      });
+      if (!res.ok) return null;
+      const blob = await res.blob();
+      audioBlobCache.current.set(cacheKey, blob);
+      return blob;
+    } catch {
+      return null;
+    }
+  }, [fetchBody]);
+
   const itemsRef = useRef(items);
   const currentIndexRef = useRef(currentIndex);
+  const voiceRef = useRef(voice);
   useEffect(() => { itemsRef.current = items; }, [items]);
   useEffect(() => { currentIndexRef.current = currentIndex; }, [currentIndex]);
+  useEffect(() => { voiceRef.current = voice; }, [voice]);
 
   const advanceToNext = useCallback(() => {
     const next = currentIndexRef.current + 1;
@@ -100,16 +130,33 @@ export default function TTSPlayer() {
     }
   }, [setCurrentIndex]);
 
+  // 백그라운드 프리패치 — 현재 이후 항목들을 미리 Blob으로 받아 캐시
+  const prefetchRemaining = useCallback((fromIndex: number, currentVoice: string) => {
+    const allItems = itemsRef.current;
+    for (let i = fromIndex; i < allItems.length; i++) {
+      const item = allItems[i];
+      const key = `${item.postId}::${currentVoice}`;
+      if (!audioBlobCache.current.has(key) && !prefetchingRef.current.has(key)) {
+        prefetchingRef.current.add(key);
+        fetchAudioBlob(item.postId, item.blogId, currentVoice).finally(() => {
+          prefetchingRef.current.delete(key);
+        });
+      }
+    }
+  }, [fetchAudioBlob]);
+
   const playCurrentItem = useCallback(async (item: typeof currentItem) => {
     if (!item) return;
-    stop();
+    ttsAudioManager.stop();
     setLoadingBody(true);
-    const body = await fetchBody(item.postId, item.blogId);
+    const blob = await fetchAudioBlob(item.postId, item.blogId, voiceRef.current);
     setLoadingBody(false);
-    if (body) {
-      play(body, advanceToNext);
+    if (blob) {
+      ttsAudioManager.playFromBlob(blob, advanceToNext);
+      // 현재 다음 항목부터 백그라운드 프리패치
+      prefetchRemaining(currentIndexRef.current + 1, voiceRef.current);
     }
-  }, [fetchBody, play, stop, advanceToNext]);
+  }, [fetchAudioBlob, advanceToNext, prefetchRemaining]);
 
   const lastPlayedIndex = useRef<number>(-1);
   useEffect(() => {
