@@ -8,7 +8,10 @@ import { useUiStore } from '@/store/uiStore';
 // HTML 태그 제거
 function stripHtml(html: string): string {
   return html
-    .replace(/<br\s*\/?>/gi, '\n')        // br → 줄바꿈 유지 (후처리에서 활용)
+    // 이미지 캡션 블록 통째로 제거 (figcaption, caption 클래스 등)
+    .replace(/<figcaption[^>]*>[\s\S]*?<\/figcaption>/gi, '')
+    .replace(/<[^>]*class="[^"]*caption[^"]*"[^>]*>[\s\S]*?<\/[^>]+>/gi, '')
+    .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<[^>]+>/g, '')
     .replace(/&nbsp;/g, ' ')
     .replace(/&amp;/g, '&')
@@ -30,6 +33,9 @@ function cleanTextForTTS(text: string): string {
     // "출처 :", "사진 출처", "이미지 출처", "참고 :", "참조 :" 등으로 시작하는 줄
     .replace(/^[ \t]*(사진\s*)?출처\s*[:：]?.*/gmi, '')
     .replace(/^[ \t]*(이미지|그림|자료|사진|참고|참조)\s*[:：].*/gmi, '')
+    // © 저작권/출처 표기 줄 (ex: "© 핸썸한미장센, 출처 OGO")
+    .replace(/^[ \t]*©.*/gmi, '')
+    .replace(/[©]\s*\S+.*출처\s*\S+/g, '')
     // "※" "◎" "☞" 등 주석 기호로 시작하는 줄 (출처 표시에 자주 쓰임)
     .replace(/^[ \t]*[※◎☞▶▷►→•·]\s*.*(출처|링크|참고|원문|클릭).*/gmi, '')
 
