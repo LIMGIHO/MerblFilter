@@ -123,6 +123,18 @@ export default function TTSPlayer() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentIndex]);
 
+  // 목소리 변경 시 재생 중/일시정지 상태면 즉시 재시작
+  const prevVoiceRef = useRef(voice);
+  useEffect(() => {
+    if (prevVoiceRef.current === voice) return;
+    prevVoiceRef.current = voice;
+    if ((status === 'playing' || status === 'paused') && currentItem) {
+      lastPlayedIndex.current = -1;
+      playCurrentItem(currentItem);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [voice]);
+
   if (!isSupported || items.length === 0) return null;
 
   const hasPrev = currentIndex > 0;
