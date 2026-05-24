@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useTtsPlaylistStore } from '@/store/ttsPlaylistStore';
-import { useTTS } from '@/features/llm/useTTS';
+import { useTTS, TTS_VOICES } from '@/features/llm/useTTS';
 import { useUiStore } from '@/store/uiStore';
 
 // HTML 태그 제거
@@ -66,7 +66,7 @@ const RATES = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
 export default function TTSPlayer() {
   const { items, currentIndex, drawerOpen, remove, setCurrentIndex, clear, toggleDrawer } =
     useTtsPlaylistStore();
-  const { isSupported, status, rate, volume, setRate, setVolume, play, pause, resume, stop, currentTime, duration, seek } = useTTS();
+  const { isSupported, status, rate, volume, voice, setRate, setVolume, setVoice, play, pause, resume, stop, currentTime, duration, seek } = useTTS();
   const contentPanelOffset = useUiStore((s) => s.contentPanelOffset);
 
   const bodyCache = useRef<Map<string, string>>(new Map());
@@ -283,6 +283,17 @@ export default function TTSPlayer() {
                 className="w-16 h-1 accent-teal-500 cursor-pointer"
               />
             </div>
+
+            {/* 목소리 */}
+            <select
+              value={voice}
+              onChange={(e) => setVoice(e.target.value as typeof voice)}
+              className="text-[10px] px-1.5 py-1 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 cursor-pointer flex-shrink-0"
+            >
+              {TTS_VOICES.map((v) => (
+                <option key={v.id} value={v.id}>{v.label}</option>
+              ))}
+            </select>
 
             {/* 속도 */}
             <select

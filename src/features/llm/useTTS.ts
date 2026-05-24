@@ -1,8 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { ttsAudioManager } from '@/features/tts/ttsAudioManager';
-import type { TTSStatus } from '@/features/tts/ttsAudioManager';
+import { ttsAudioManager, TTS_VOICES } from '@/features/tts/ttsAudioManager';
+import type { TTSStatus, TTSVoiceId } from '@/features/tts/ttsAudioManager';
+
+export { TTS_VOICES };
+export type { TTSVoiceId };
 
 export type { TTSStatus };
 
@@ -11,10 +14,12 @@ export interface UseTTSReturn {
   status: TTSStatus;
   rate: number;
   volume: number;
+  voice: TTSVoiceId;
   currentTime: number;
   duration: number;
   setRate: (r: number) => void;
   setVolume: (v: number) => void;
+  setVoice: (v: TTSVoiceId) => void;
   play: (text: string, onEnd?: () => void) => Promise<void>;
   pause: () => void;
   resume: () => void;
@@ -44,10 +49,12 @@ export function useTTS(): UseTTSReturn {
     status: state.status,
     rate: state.rate,
     volume: state.volume,
+    voice: state.voice,
     currentTime: state.currentTime,
     duration: state.duration,
     setRate: (r) => ttsAudioManager.setRate(r),
     setVolume: (v) => ttsAudioManager.setVolume(v),
+    setVoice: (v) => ttsAudioManager.setVoice(v),
     play: (text, onEnd) => ttsAudioManager.play(text, onEnd),
     pause: () => ttsAudioManager.pause(),
     resume: () => ttsAudioManager.resume(),

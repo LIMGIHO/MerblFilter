@@ -10,12 +10,22 @@ export type TTSStatus = 'idle' | 'loading' | 'playing' | 'paused';
 
 type Listener = () => void;
 
+export const TTS_VOICES = [
+  { id: 'ko-KR-SunHiNeural',   label: '선히 (여성)' },
+  { id: 'ko-KR-InJoonNeural',  label: '인준 (남성)' },
+  { id: 'ko-KR-HyunsuNeural',  label: '현수 (남성)' },
+  { id: 'ko-KR-YuJinNeural',   label: '유진 (여성)' },
+] as const;
+
+export type TTSVoiceId = typeof TTS_VOICES[number]['id'];
+
 interface AudioState {
   status: TTSStatus;
   currentTime: number;
   duration: number;
   rate: number;
   volume: number;
+  voice: TTSVoiceId;
 }
 
 class TTSAudioManager {
@@ -26,6 +36,7 @@ class TTSAudioManager {
   private _status: TTSStatus = 'idle';
   private _rate = 1.0;
   private _volume = 1.0;
+  private _voice: TTSVoiceId = 'ko-KR-SunHiNeural';
   private _currentTime = 0;
   private _duration = 0;
   private cancelToken = 0;
@@ -48,6 +59,7 @@ class TTSAudioManager {
       duration: this._duration,
       rate: this._rate,
       volume: this._volume,
+      voice: this._voice,
     };
   }
 
@@ -85,7 +97,7 @@ class TTSAudioManager {
       const res = await fetch('/api/tts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ text, voice: this._voice }),
       });
 
       if (token !== this.cancelToken) return;
@@ -217,6 +229,11 @@ class TTSAudioManager {
   setVolume(v: number) {
     this._volume = Math.max(0, Math.min(1, v));
     if (this.audio) this.audio.volume = this._volume;
+    this.notify();
+  }
+
+  setVoice(v: TTSVoiceId) {
+    this._voice = v;
     this.notify();
   }
 }
