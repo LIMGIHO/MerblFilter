@@ -8,7 +8,7 @@ import { useUiStore } from '@/store/uiStore';
 // HTML 태그 제거
 function stripHtml(html: string): string {
   return html
-    .replace(/<br\s*\/?>/gi, ' ')
+    .replace(/<br\s*\/?>/gi, '\n')        // br → 줄바꿈 유지 (후처리에서 활용)
     .replace(/<[^>]+>/g, '')
     .replace(/&nbsp;/g, ' ')
     .replace(/&amp;/g, '&')
@@ -16,6 +16,32 @@ function stripHtml(html: string): string {
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
+    .trim();
+}
+
+// TTS 읽기 품질 향상을 위한 후처리
+function cleanTextForTTS(text: string): string {
+  return text
+    // ── URL / 링크 제거 ─────────────────────────────────────
+    .replace(/https?:\/\/\S+/g, '')
+    .replace(/www\.\S+/g, '')
+
+    // ── 출처·참고 줄 제거 ───────────────────────────────────
+    // "출처 :", "사진 출처", "이미지 출처", "참고 :", "참조 :" 등으로 시작하는 줄
+    .replace(/^[ \t]*(사진\s*)?출처\s*[:：]?.*/gmi, '')
+    .replace(/^[ \t]*(이미지|그림|자료|사진|참고|참조)\s*[:：].*/gmi, '')
+    // "※" "◎" "☞" 등 주석 기호로 시작하는 줄 (출처 표시에 자주 쓰임)
+    .replace(/^[ \t]*[※◎☞▶▷►→•·]\s*.*(출처|링크|참고|원문|클릭).*/gmi, '')
+
+    // ── 번호 목록 붙여읽기 방지 ─────────────────────────────
+    // "숫자." 또는 "숫자)" 앞에 마침표+공백 삽입 (앞 글자가 있을 때만)
+    // ex) "어쩌고2." → "어쩌고. 2."
+    .replace(/([^\n\s\d])(\s*)(\d{1,2}[.)]) /g, '$1. $3 ')
+
+    // ── 공백/줄바꿈 정리 ────────────────────────────────────
+    .replace(/[ \t]{2,}/g, ' ')          // 연속 공백
+    .replace(/\n{3,}/g, '\n\n')          // 연속 빈 줄
+    .replace(/\n/g, ' ')                 // 줄바꿈 → 공백
     .replace(/\s{2,}/g, ' ')
     .trim();
 }
@@ -46,7 +72,7 @@ export default function TTSPlayer() {
     try {
       const res = await fetch(`/api/post-content?postId=${postId}&blogId=${blogId}`);
       const json = await res.json();
-      const text = stripHtml(String(json.content ?? ''));
+      const text = cleanTextForTTS(stripHtml(String(json.content ?? '')));
       bodyCache.current.set(postId, text);
       return text;
     } catch {
