@@ -11,10 +11,11 @@ export type TTSStatus = 'idle' | 'loading' | 'playing' | 'paused';
 type Listener = () => void;
 
 export const TTS_VOICES = [
-  { id: 'ko-KR-SunHiNeural',   label: '선히 (여성)' },
-  { id: 'ko-KR-InJoonNeural',  label: '인준 (남성)' },
-  { id: 'ko-KR-HyunsuNeural',  label: '현수 (남성)' },
-  { id: 'ko-KR-YuJinNeural',   label: '유진 (여성)' },
+  { id: 'ko-KR-SunHiNeural',    label: '선히 (여성)' },
+  { id: 'ko-KR-SeoHyeonNeural', label: '서현 (여성)' },
+  { id: 'ko-KR-InJoonNeural',   label: '인준 (남성)' },
+  { id: 'ko-KR-HyunsuNeural',   label: '현수 (남성)' },
+  { id: 'ko-KR-BongJinNeural',  label: '봉진 (남성)' },
 ] as const;
 
 export type TTSVoiceId = typeof TTS_VOICES[number]['id'];
