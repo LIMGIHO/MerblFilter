@@ -11,11 +11,9 @@ export type TTSStatus = 'idle' | 'loading' | 'playing' | 'paused';
 type Listener = () => void;
 
 export const TTS_VOICES = [
-  { id: 'ko-KR-SunHiNeural',    label: '선히 (여성)' },
-  { id: 'ko-KR-SeoHyeonNeural', label: '서현 (여성)' },
-  { id: 'ko-KR-InJoonNeural',   label: '인준 (남성)' },
-  { id: 'ko-KR-HyunsuNeural',   label: '현수 (남성)' },
-  { id: 'ko-KR-BongJinNeural',  label: '봉진 (남성)' },
+  { id: 'ko-KR-SunHiNeural',              label: '선히 (여성)' },
+  { id: 'ko-KR-InJoonNeural',             label: '인준 (남성)' },
+  { id: 'ko-KR-HyunsuMultilingualNeural', label: '현수 (남성)' },
 ] as const;
 
 export type TTSVoiceId = typeof TTS_VOICES[number]['id'];
@@ -37,7 +35,13 @@ class TTSAudioManager {
   private _status: TTSStatus = 'idle';
   private _rate = 1.0;
   private _volume = 1.0;
-  private _voice: TTSVoiceId = 'ko-KR-SunHiNeural';
+  private _voice: TTSVoiceId = (() => {
+    try {
+      const saved = typeof localStorage !== 'undefined' ? localStorage.getItem('@tts_voice') : null;
+      const valid = TTS_VOICES.map((v) => v.id) as string[];
+      return (saved && valid.includes(saved) ? saved : 'ko-KR-SunHiNeural') as TTSVoiceId;
+    } catch { return 'ko-KR-SunHiNeural'; }
+  })();
   private _currentTime = 0;
   private _duration = 0;
   private cancelToken = 0;
@@ -87,7 +91,7 @@ class TTSAudioManager {
   }
 
   // ── 캐시된 Blob으로 재생 (네트워크 요청 없음) ────────────
-  async playFromBlob(blob: Blob, onEnd?: () => void): Promise<void> {
+  async playFromBlob(blob: Blob, onEnd?: () => void, startFrom = 0): Promise<void> {
     this.cancelToken++;
     const token = this.cancelToken;
     this.cleanupAudio();
@@ -99,6 +103,16 @@ class TTSAudioManager {
       this.audio = new Audio(this.objectUrl);
       this.audio.playbackRate = this._rate;
       this.audio.volume = this._volume;
+      // startFrom > 0 이면 메타데이터 로드 후 seek
+      if (startFrom > 0) {
+        this.audio.addEventListener('loadedmetadata', () => {
+          if (this.audio && isFinite(this.audio.duration) && startFrom < this.audio.duration) {
+            this.audio.currentTime = startFrom;
+            this._currentTime = startFrom;
+            this.notify();
+          }
+        }, { once: true });
+      }
       this._attachListeners(this.audio, token);
       await this.audio.play();
       if (token === this.cancelToken) this.setStatus('playing');
@@ -257,6 +271,7 @@ class TTSAudioManager {
 
   setVoice(v: TTSVoiceId) {
     this._voice = v;
+    try { localStorage.setItem('@tts_voice', v); } catch {}
     this.notify();
   }
 }
