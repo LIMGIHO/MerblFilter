@@ -49,7 +49,7 @@ export default function BuildSeal() {
 
   return (
     <div
-      className="fixed bottom-3 left-3 z-50 pointer-events-none select-none"
+      className="hidden sm:block fixed bottom-3 left-3 z-50 pointer-events-none select-none"
       aria-hidden
     >
       <div

@@ -516,10 +516,11 @@ export default function TTSPlayer() {
       )}
 
       {/* ── 플레이어 바 ── */}
-      <div className="pointer-events-auto w-full max-w-3xl mx-auto px-4 sm:px-6 mb-3">
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl px-4 pt-2.5 pb-2 flex flex-col gap-1.5">
+      <div className="pointer-events-auto w-full max-w-3xl mx-auto px-3 sm:px-6 mb-3">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl px-3 sm:px-4 pt-2.5 pb-2 flex flex-col gap-1.5">
 
-          <div className="flex items-center gap-3">
+          {/* ── 1행: 트랙 정보 + 재생 컨트롤 + (데스크톱) 볼륨·목소리·속도 ── */}
+          <div className="flex items-center gap-2 sm:gap-3">
             {/* 트랙 정보 */}
             <button onClick={toggleDrawer} className="flex-1 min-w-0 flex items-center gap-2 text-left">
               <span className={`flex-shrink-0 text-base ${status === 'playing' ? 'animate-pulse text-teal-500' : 'text-slate-400'}`}>
@@ -536,7 +537,7 @@ export default function TTSPlayer() {
               </div>
             </button>
 
-            {/* 컨트롤 */}
+            {/* 재생 컨트롤 */}
             <div className="flex items-center gap-1 flex-shrink-0">
               <button onClick={handlePrev} disabled={!hasPrev}
                 className="w-7 h-7 flex items-center justify-center rounded-full text-slate-500 hover:text-teal-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition disabled:opacity-30">
@@ -558,8 +559,8 @@ export default function TTSPlayer() {
               </button>
             </div>
 
-            {/* 볼륨 */}
-            <div className="flex items-center gap-1 flex-shrink-0">
+            {/* 볼륨 — 데스크톱만 */}
+            <div className="hidden sm:flex items-center gap-1 flex-shrink-0">
               <span className="text-slate-400 text-xs select-none">
                 {volume === 0 ? '🔇' : volume < 0.5 ? '🔉' : '🔊'}
               </span>
@@ -568,15 +569,37 @@ export default function TTSPlayer() {
                 className="w-16 h-1 accent-teal-500 cursor-pointer" />
             </div>
 
-            {/* 목소리 */}
+            {/* 목소리 — 데스크톱만 */}
+            <select value={voice} onChange={(e) => setVoice(e.target.value as typeof voice)}
+              className="hidden sm:block text-[10px] px-1.5 py-1 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 cursor-pointer flex-shrink-0">
+              {TTS_VOICES.map((v) => (
+                <option key={v.id} value={v.id}>{v.label}</option>
+              ))}
+            </select>
+
+            {/* 속도 — 데스크톱만 */}
+            <select value={rate} onChange={(e) => setRate(Number(e.target.value))}
+              className="hidden sm:block text-[10px] px-1.5 py-1 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 cursor-pointer flex-shrink-0">
+              {RATES.map((r) => (
+                <option key={r} value={r}>{r}x</option>
+              ))}
+            </select>
+          </div>
+
+          {/* ── 모바일 전용 2행: 볼륨 + 목소리 + 속도 ── */}
+          <div className="flex sm:hidden items-center gap-2">
+            <span className="text-slate-400 text-xs select-none flex-shrink-0">
+              {volume === 0 ? '🔇' : volume < 0.5 ? '🔉' : '🔊'}
+            </span>
+            <input type="range" min={0} max={1} step={0.05} value={volume}
+              onChange={(e) => setVolume(Number(e.target.value))}
+              className="flex-1 h-1 accent-teal-500 cursor-pointer" />
             <select value={voice} onChange={(e) => setVoice(e.target.value as typeof voice)}
               className="text-[10px] px-1.5 py-1 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 cursor-pointer flex-shrink-0">
               {TTS_VOICES.map((v) => (
                 <option key={v.id} value={v.id}>{v.label}</option>
               ))}
             </select>
-
-            {/* 속도 */}
             <select value={rate} onChange={(e) => setRate(Number(e.target.value))}
               className="text-[10px] px-1.5 py-1 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 cursor-pointer flex-shrink-0">
               {RATES.map((r) => (
