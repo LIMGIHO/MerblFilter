@@ -229,7 +229,7 @@ export default function TTSPlayer() {
     ttsAudioManager.stop();
     setLoadingBody(true);
 
-    const { postId, blogId } = item;
+    const { postId, blogId, title } = item;
     const chunks = await getChunks(postId, blogId);
     if (!chunks.length) { setLoadingBody(false); return; }
 
@@ -246,10 +246,26 @@ export default function TTSPlayer() {
     const sessionId = chunkSessionRef.current;
     chunkStateRef.current = { sessionId, postId, voiceId: voiceRef.current };
 
-    // 청크 0 준비 (빠른 시작)
-    const blob0 = await getChunkBlob(postId, voiceRef.current, 0, chunks[0]);
+    // 제목 blob + 청크 0 blob 병렬 준비
+    const titleKey = `__title__::${postId}::${voiceRef.current}`;
+    const titleBlobPromise: Promise<Blob | null> = (() => {
+      const cached = blobCache.current.get(titleKey);
+      if (cached) return Promise.resolve(cached);
+      return fetch('/api/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: title, voice: voiceRef.current }),
+      }).then((r) => r.ok ? r.blob().then((b) => { blobCache.current.set(titleKey, b); return b; }) : null)
+        .catch(() => null);
+    })();
+
+    const [titleBlob, blob0] = await Promise.all([
+      titleBlobPromise,
+      getChunkBlob(postId, voiceRef.current, 0, chunks[0]),
+    ]);
     setLoadingBody(false);
-    if (!blob0 || chunkStateRef.current?.sessionId !== sessionId) return;
+    if (chunkStateRef.current?.sessionId !== sessionId) return;
+    if (!blob0) return;
 
     // blob0 duration 측정
     probeDuration(blob0).then((dur) => {
@@ -333,7 +349,15 @@ export default function TTSPlayer() {
 
     // playChunk를 ref에 노출 (handleSeek에서 호출)
     playChunkRef.current = playChunk;
-    playChunk(0);
+
+    // 제목 먼저 읽고 → 본문 재생
+    if (titleBlob && chunkStateRef.current?.sessionId === sessionId) {
+      ttsAudioManager.playFromBlob(titleBlob, () => {
+        if (chunkStateRef.current?.sessionId === sessionId) playChunk(0);
+      });
+    } else {
+      playChunk(0);
+    }
   }, [getChunks, getChunkBlob, advanceToNext, updateTotalDuration]);
 
   // ── 재생목록 항목별 청크 0 프리패치 ─────────────────────────────────────────
