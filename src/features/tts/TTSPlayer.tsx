@@ -38,6 +38,9 @@ function cleanTextForTTS(text: string): string {
     .replace(/([^\n\s\d])(\s*)(\d{1,2}[.)]) /g, '$1. $3 ')
     .replace(/[ \t]{2,}/g, ' ')
     .replace(/\n{3,}/g, '\n\n')
+    // 단락 구분(\n\n): 문장부호 없으면 마침표 삽입 → TTS가 단락 경계에서 자연스럽게 쉼
+    .replace(/([^.!?…。？！])\n{2,}/g, '$1. ')
+    .replace(/([.!?…。？！])\n{2,}/g, '$1 ')
     .replace(/\n/g, ' ')
     .replace(/\s{2,}/g, ' ')
     .trim();
