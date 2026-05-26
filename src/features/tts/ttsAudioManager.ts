@@ -11,7 +11,7 @@ export type TTSStatus = 'idle' | 'loading' | 'playing' | 'paused';
 type Listener = () => void;
 
 export const TTS_VOICES = [
-  { id: 'ko-KR-SunHiNeural',              label: '선히 (여성)' },
+  { id: 'ko-KR-SunHiNeural',              label: '선희 (여성)' },
   { id: 'ko-KR-InJoonNeural',             label: '인준 (남성)' },
   { id: 'ko-KR-HyunsuMultilingualNeural', label: '현수 (남성)' },
 ] as const;
@@ -118,7 +118,12 @@ class TTSAudioManager {
       if (token === this.cancelToken) this.setStatus('playing');
     } catch (err) {
       console.error('[TTS]', err);
-      if (token === this.cancelToken) this.setStatus('idle');
+      if (token === this.cancelToken) {
+        this.setStatus('idle');
+        const cb = this.onEndCallback;
+        this.onEndCallback = undefined;
+        cb?.();
+      }
     }
   }
 
@@ -221,7 +226,11 @@ class TTSAudioManager {
       cb?.();
     };
     audio.onerror = () => {
-      if (token === this.cancelToken) this.setStatus('idle');
+      if (token !== this.cancelToken) return;
+      this.setStatus('idle');
+      const cb = this.onEndCallback;
+      this.onEndCallback = undefined;
+      cb?.();
     };
   }
 

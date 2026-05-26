@@ -30,6 +30,9 @@ function cleanTextForTTS(text: string): string {
   return text
     .replace(/https?:\/\/\S+/g, '')
     .replace(/www\.\S+/g, '')
+    // bare 도메인 제거 (OG 카드 잔여물: ctstat.kita.net, naver.com 등)
+    .replace(/\b[a-z0-9][\w-]*\.[a-z]{2,4}\.[a-z]{2,3}\b/gi, '')  // xxx.kita.net
+    .replace(/\b[a-z0-9][\w-]*\.(com|net|org|kr|io|co|app|me|ai)\b/gi, '') // xxx.com
     // © / ⓒ 로 시작하는 줄 제거 (이미지 캡션)
     .replace(/^[ \t]*[©ⓒ]\s*.*/gmi, '')
     .replace(/^[ \t]*(사진\s*)?출처\s*[:：]?.*/gmi, '')
@@ -38,9 +41,9 @@ function cleanTextForTTS(text: string): string {
     .replace(/([^\n\s\d])(\s*)(\d{1,2}[.)]) /g, '$1. $3 ')
     .replace(/[ \t]{2,}/g, ' ')
     .replace(/\n{3,}/g, '\n\n')
-    // 단락 구분(\n\n): 문장부호 없으면 마침표 삽입 → TTS가 단락 경계에서 자연스럽게 쉼
-    .replace(/([^.!?…。？！])\n{2,}/g, '$1. ')
-    .replace(/([.!?…。？！])\n{2,}/g, '$1 ')
+    // 단락 구분(\n\n): 말줄임표(...)로 변환 → Azure Neural TTS가 단락 경계에서 충분히 쉼
+    .replace(/([^.!?…。？！])\n{2,}/g, '$1... ')
+    .replace(/([.!?…。？！])\n{2,}/g, '$1 ... ')
     .replace(/\n/g, ' ')
     .replace(/\s{2,}/g, ' ')
     .trim();
@@ -146,6 +149,11 @@ export default function TTSPlayer() {
   // 전체 청크 수 vs 알려진 수 → 백그라운드 처리 중 여부 표시
   const [totalChunks,   setTotalChunks]   = useState(0);
   const [knownChunks,   setKnownChunks]   = useState(0);
+
+  // seek bar 드래그 중 snapback 방지
+  const [isSeeking,     setIsSeeking]     = useState(false);
+  const [seekingValue,  setSeekingValue]  = useState(0);
+  const seekingValueRef = useRef(0);  // onChange마다 최신값 즉시 반영
 
   const currentItem = items[currentIndex] ?? null;
 
@@ -459,8 +467,7 @@ export default function TTSPlayer() {
   }
 
   // ── 크로스 청크 seek ─────────────────────────────────────────────────────────
-  function handleSeek(e: React.ChangeEvent<HTMLInputElement>) {
-    const targetTime = Number(e.target.value);
+  function doSeek(targetTime: number) {
     const durations  = chunkDurationsRef.current;
     const curChunk   = currentChunkIdxRef.current;
 
@@ -648,8 +655,22 @@ export default function TTSPlayer() {
                     min={0}
                     max={seekMax}
                     step={0.5}
-                    value={totalCurrentTime}
-                    onChange={handleSeek}
+                    value={isSeeking ? seekingValue : totalCurrentTime}
+                    onChange={(e) => {
+                      // 드래그 중 시각적 업데이트 (실제 seek는 pointerUp에서)
+                      const v = Number(e.target.value);
+                      seekingValueRef.current = v;
+                      setSeekingValue(v);
+                    }}
+                    onPointerDown={() => {
+                      seekingValueRef.current = totalCurrentTime;
+                      setSeekingValue(totalCurrentTime);
+                      setIsSeeking(true);
+                    }}
+                    onPointerUp={() => {
+                      doSeek(seekingValueRef.current);
+                      setIsSeeking(false);
+                    }}
                     className="flex-1 h-1.5 accent-teal-500 cursor-pointer"
                   />
                   <span className="text-[10px] text-slate-400 dark:text-slate-500 flex-shrink-0 flex items-center gap-1">

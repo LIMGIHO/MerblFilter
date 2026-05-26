@@ -5,6 +5,66 @@ import { NextRequest, NextResponse } from 'next/server';
  * 모바일 페이지(m.blog.naver.com)에서 본문을 가져와 HTML 태그 제거 후 plain text 반환.
  */
 
+/**
+ * 특정 class를 포함하는 div 블록을 div depth tracking으로 통째 제거
+ */
+function removeDivsByClass(html: string, classPattern: RegExp): string {
+  let result = '';
+  let i = 0;
+
+  while (i < html.length) {
+    // 다음 <div ...> 찾기
+    const divTagRe = /<div(\s[^>]*)?>/gi;
+    divTagRe.lastIndex = i;
+    const m = divTagRe.exec(html);
+
+    if (!m) {
+      result += html.slice(i);
+      break;
+    }
+
+    if (classPattern.test(m[0])) {
+      // 매칭 div 이전까지 보존
+      result += html.slice(i, m.index);
+      // depth tracking으로 닫히는 </div>까지 통째 건너뜀
+      let depth = 1;
+      let j = m.index + m[0].length;
+      while (j < html.length && depth > 0) {
+        const openIdx = html.indexOf('<div', j);
+        const closeIdx = html.indexOf('</div>', j);
+        if (closeIdx === -1) { j = html.length; break; }
+        if (openIdx !== -1 && openIdx < closeIdx) {
+          depth++;
+          j = openIdx + 4;
+        } else {
+          depth--;
+          j = closeIdx + 6;
+        }
+      }
+      i = j;
+    } else {
+      // 매칭 안 됨 — div 태그까지 포함해서 보존하고 계속
+      result += html.slice(i, m.index + m[0].length);
+      i = m.index + m[0].length;
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Naver 블로그 OG 링크 카드 블록 제거
+ * SE3: se-module-oglink, se-section-oglink
+ * SE2: se2_link
+ */
+function removeOgCards(html: string): string {
+  let out = html;
+  for (const pat of [/se-module-oglink/, /se-section-oglink/, /se2_link/]) {
+    out = removeDivsByClass(out, pat);
+  }
+  return out;
+}
+
 function stripHtml(html: string): string {
   return html
     .replace(/<script[\s\S]*?<\/script>/gi, '')
@@ -76,7 +136,7 @@ function extractBody(html: string): string {
     // 더 구형
     raw = extractByDepth(html, /<div[^>]*class="[^"]*post_ct[^"]*"[^>]*>/);
   }
-  return raw ? stripHtml(raw) : '';
+  return raw ? stripHtml(removeOgCards(raw)) : '';
 }
 
 export async function GET(req: NextRequest) {
