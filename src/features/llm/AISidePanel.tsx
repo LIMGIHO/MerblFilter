@@ -270,14 +270,34 @@ export default function AISidePanel({ isOpen, onClose, selectedPost, width, onWi
       let systemPrompt: string;
 
       if (isLightModel) {
-        // ── 경량 모드: 규칙 최소화 (0.5B는 규칙이 많을수록 무시함) ──
+        // ── 경량 모드: 규칙 최소화 + few-shot 예시 1개 ──
+        // 0.5B는 추상적 규칙보다 구체적 예시 1개가 포맷 준수율을 크게 높임
         const base = '한국어로만 답하세요. 제공된 내용에만 근거하세요. 반복 금지.';
         if (resolved === 'post') {
-          systemPrompt = `[본문] 내용만 보고 질문에 간결하게 답하세요. ${base}`;
+          systemPrompt = `[본문] 내용만 보고 질문에 간결하게 답하세요. ${base}
+
+[예시]
+질문: 3줄 요약
+답변:
+- 첫 번째 핵심 내용
+- 두 번째 핵심 내용
+- 결론 또는 시사점`;
         } else if (resolved === 'comments') {
-          systemPrompt = `[독자 댓글] 내용만 보고 질문에 간결하게 답하세요. ${base}`;
+          systemPrompt = `[독자 댓글] 내용만 보고 질문에 간결하게 답하세요. ${base}
+
+[예시]
+질문: 댓글 반응 분석
+답변:
+- 긍정: 공감하는 의견 다수
+- 부정: 일부 반박 또는 우려 의견`;
         } else {
-          systemPrompt = `[본문]과 [독자 댓글] 내용만 보고 질문에 간결하게 답하세요. ${base}`;
+          systemPrompt = `[본문]과 [독자 댓글] 내용만 보고 질문에 간결하게 답하세요. ${base}
+
+[예시]
+질문: 종합 요약
+답변:
+본문 핵심: 주요 내용 요약
+댓글 반응: 독자들의 주요 반응`;
         }
       } else {
         // ── 기본/고성능 모드: 기존 상세 프롬프트 ──
