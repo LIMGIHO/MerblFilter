@@ -221,7 +221,9 @@ export default function AISidePanel({ isOpen, onClose, selectedPost, width, onWi
 
       if (bodyRes) {
         const bodyJson = await bodyRes.json();
-        postBody = String(bodyJson.content ?? '').slice(0, 6000); // 본문 최대 6000자
+        // 경량 모델(0.5B)은 긴 본문 처리 능력 제한 → 2000자로 제한
+        const bodyLimit = phase2ModelId === 'Qwen2.5-0.5B-Instruct-q4f16_1-MLC' ? 2000 : 6000;
+        postBody = String(bodyJson.content ?? '').slice(0, bodyLimit);
       }
 
       if (cmtRes) {
@@ -260,9 +262,26 @@ export default function AISidePanel({ isOpen, onClose, selectedPost, width, onWi
     const temperature = isSummary ? 0.2 : 0.4;
 
     setIsGenerating(true);
+
+    // 경량 모델(0.5B) 여부 — 프롬프트·파이프라인 분기에 사용
+    const isLightModel = phase2ModelId === 'Qwen2.5-0.5B-Instruct-q4f16_1-MLC';
+
     try {
-      // 공통 금지 규칙 (모든 모드)
-      const COMMON_RULES = `
+      let systemPrompt: string;
+
+      if (isLightModel) {
+        // ── 경량 모드: 규칙 최소화 (0.5B는 규칙이 많을수록 무시함) ──
+        const base = '한국어로만 답하세요. 제공된 내용에만 근거하세요. 반복 금지.';
+        if (resolved === 'post') {
+          systemPrompt = `[본문] 내용만 보고 질문에 간결하게 답하세요. ${base}`;
+        } else if (resolved === 'comments') {
+          systemPrompt = `[독자 댓글] 내용만 보고 질문에 간결하게 답하세요. ${base}`;
+        } else {
+          systemPrompt = `[본문]과 [독자 댓글] 내용만 보고 질문에 간결하게 답하세요. ${base}`;
+        }
+      } else {
+        // ── 기본/고성능 모드: 기존 상세 프롬프트 ──
+        const COMMON_RULES = `
 - URL·링크·참조 출처를 절대 생성하지 마세요. 본문에 없는 링크는 존재하지 않습니다.
 - "메르님은 ...을 바탕으로 답변합니다" 같은 메타 설명 텍스트 금지. 바로 내용만 작성.
 - 같은 내용을 반복하지 마세요. 각 정보는 한 번만 언급.
@@ -274,24 +293,23 @@ export default function AISidePanel({ isOpen, onClose, selectedPost, width, onWi
 - 응답 마지막에 🔔, 📌 등 이모지로 시작하는 메타 주석 라인을 추가하지 마세요.
 - 반드시 한글로만 답변하세요. 한자(漢字)·일본어·중국어 등 비한글 문자를 절대 사용하지 마세요.`;
 
-      let systemPrompt: string;
-      if (resolved === 'post') {
-        systemPrompt = `당신은 아래 제공된 [본문]만을 근거로 답하는 블로그 분석 어시스턴트입니다.
+        if (resolved === 'post') {
+          systemPrompt = `당신은 아래 제공된 [본문]만을 근거로 답하는 블로그 분석 어시스턴트입니다.
 
 절대 규칙:
 - [본문]에 있는 내용만 사용하세요. 일반 상식이나 외부 지식으로 답하지 마세요.
 - 본문에 없는 내용을 묻는 경우 "이 게시글에서는 해당 내용을 다루지 않습니다."라고만 답하세요.
 - 마크다운(**굵게**, - 목록, 1. 번호) 적극 활용해 가독성 확보.
 - 요약을 요청받으면 응답 마지막에 **[메르의 코멘트]** 섹션을 추가하고 원문을 그대로 인용하세요.${COMMON_RULES}`;
-      } else if (resolved === 'comments') {
-        systemPrompt = `당신은 아래 제공된 [독자 댓글]만을 분석하는 어시스턴트입니다.
+        } else if (resolved === 'comments') {
+          systemPrompt = `당신은 아래 제공된 [독자 댓글]만을 분석하는 어시스턴트입니다.
 
 절대 규칙:
 - [독자 댓글]에 있는 내용만 사용하세요. 추론하거나 외부 지식을 사용하지 마세요.
 - 댓글에 없는 내용을 묻는 경우 "댓글에서는 해당 내용을 찾을 수 없습니다."라고만 답하세요.
 - 마크다운(**굵게**, - 목록, 1. 번호) 적극 활용해 가독성 확보.${COMMON_RULES}`;
-      } else {
-        systemPrompt = `당신은 아래 제공된 [본문]과 [독자 댓글]을 근거로 답하는 블로그 분석 어시스턴트입니다.
+        } else {
+          systemPrompt = `당신은 아래 제공된 [본문]과 [독자 댓글]을 근거로 답하는 블로그 분석 어시스턴트입니다.
 
 절대 규칙:
 - 반드시 [본문] 또는 [독자 댓글]에 있는 내용만 사용하세요. 외부 지식이나 추론 금지.
@@ -305,6 +323,7 @@ export default function AISidePanel({ isOpen, onClose, selectedPost, width, onWi
 - 각 섹션은 해당 소스에만 근거하세요. 두 섹션 사이 내용 중복 절대 금지.
 - 요약 요청 시 [📄 본문 기반] 마지막에 **[메르의 코멘트]** 원문을 그대로 인용.
 - 마크다운(### 섹션 헤더, **굵게**, - 목록) 적극 활용.${COMMON_RULES}`;
+        }
       }
 
       let userPrompt: string;
@@ -317,12 +336,13 @@ export default function AISidePanel({ isOpen, onClose, selectedPost, width, onWi
       }
 
       // 2-stage pipeline for post context
-      // 짧은 글(2000자 이하)은 Stage 1 스킵 → 전체 본문 직접 전달 (추출 손실 방지)
-      // 긴 글은 Stage 1 LLM 추출 유지
+      // 경량 모델(0.5B): Stage 1 완전 스킵 — 0.5B가 추출하면 오히려 정보 손실
+      // 짧은 글(2000자 이하): Stage 1 스킵 → 전체 본문 직접 전달
+      // 긴 글: Stage 1 LLM 추출 유지
       const STAGE1_THRESHOLD = 2000;
       let finalUserPrompt = userPrompt;
       if ((resolved === 'post' || resolved === 'all') && postBody) {
-        const needsStage1 = postBody.length > STAGE1_THRESHOLD;
+        const needsStage1 = !isLightModel && postBody.length > STAGE1_THRESHOLD;
         if (needsStage1) {
           // Stage 1: extract relevant passages
           setGeneratingStage('analyzing');
@@ -353,9 +373,12 @@ export default function AISidePanel({ isOpen, onClose, selectedPost, width, onWi
       }
 
       // Stage 2: actual answer
-      const maxTokens = resolved === 'all'
-        ? (isSummary ? 1536 : 2048)   // all 모드: 두 섹션 필요 → 더 많은 토큰
-        : (isSummary ? 1024 : 1536);
+      // 경량(0.5B): 500토큰 고정 — 길게 쓸수록 반복·품질 저하
+      const maxTokens = isLightModel
+        ? 500
+        : resolved === 'all'
+          ? (isSummary ? 1536 : 2048)
+          : (isSummary ? 1024 : 1536);
       await generate(systemPrompt, finalUserPrompt, (chunk) => {
         answerRef.current += chunk;
         const { thinking, answer } = splitThinking(answerRef.current);
