@@ -5,6 +5,7 @@ import { useLlmStore, WEBLLM_MODELS } from '@/store/llmStore';
 import { useWebLLM } from './useWebLLM';
 import MessageContent from './MessageContent';
 import { useTtsPlaylistStore } from '@/store/ttsPlaylistStore';
+import { isMobileDevice } from '@/lib/deviceDetect';
 
 interface Message {
   id: string;
@@ -223,7 +224,7 @@ export default function AISidePanel({ isOpen, onClose, selectedPost, width, onWi
         const bodyJson = await bodyRes.json();
         // 경량 모델(0.5B)은 긴 본문 처리 능력 제한 → 2000자로 제한
         // 모바일은 컨텍스트 윈도우가 4096토큰까지 → 본문 1200자로 추가 축소
-        const isMobileNow = typeof window !== 'undefined' && window.innerWidth < 768;
+        const isMobileNow = isMobileDevice();
         const isLight = phase2ModelId === 'Qwen2.5-0.5B-Instruct-q4f16_1-MLC';
         const bodyLimit = isMobileNow ? 1200 : (isLight ? 2000 : 6000);
         postBody = String(bodyJson.content ?? '').slice(0, bodyLimit);

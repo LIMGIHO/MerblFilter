@@ -2,6 +2,7 @@
 
 import { useCallback } from 'react';
 import { useLlmStore } from '@/store/llmStore';
+import { isMobileDevice } from '@/lib/deviceDetect';
 
 // 모듈 레벨 싱글톤 — 컴포넌트 마운트/언마운트에도 유지됨
 let _engine: unknown = null;
@@ -32,8 +33,8 @@ export function useWebLLM() {
     setPhase2Error(null);
 
     try {
-      // 모바일 감지 — GPU 버퍼 크기 한계 때문에 컨텍스트를 작게
-      const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+      // 모바일/저GPU 디바이스 감지 — UA + 터치 + viewport 종합
+      const isMobile = isMobileDevice();
       // 모바일: 4096 (mapAsync 실패 방지) / 데스크탑: 32768 (Qwen 2.5 native)
       const contextWindowSize = isMobile ? 4096 : 32768;
 
