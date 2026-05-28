@@ -8,6 +8,7 @@ import { useUiStore } from '@/store/uiStore';
 import { useBlogStore } from '@/store/blogStore';
 import dynamic from 'next/dynamic';
 import type { SelectedPost } from '@/features/llm/AISidePanel';
+import { AISidePanelBoundary } from '@/components/AISidePanelBoundary';
 // 네이버 읽음 처리 — SameSite=Lax 쿠키 정책으로 cross-site 호출 불가 (Chrome 80+)
 // 코드는 보존 (크롬 확장 개발 시 재활용 예정). 호출은 비활성화.
 // import { markNaverPostAsRead } from '@/lib/naverRead';
@@ -421,16 +422,18 @@ export default function PostList() {
         </div>
       </div>
 
-      {/* AI 사이드 패널 */}
-      <AISidePanel
-        isOpen={panelMode === 'ai'}
-        onClose={() => setPanelMode(null)}
-        selectedPost={selectedPost}
-        width={panelWidth}
-        onWidthChange={setPanelWidth}
-        minWidth={PANEL_MIN}
-        maxWidth={PANEL_MAX}
-      />
+      {/* AI 사이드 패널 — 모바일 디버그용 에러 바운더리 래핑 */}
+      <AISidePanelBoundary onClose={() => setPanelMode(null)}>
+        <AISidePanel
+          isOpen={panelMode === 'ai'}
+          onClose={() => setPanelMode(null)}
+          selectedPost={selectedPost}
+          width={panelWidth}
+          onWidthChange={setPanelWidth}
+          minWidth={PANEL_MIN}
+          maxWidth={PANEL_MAX}
+        />
+      </AISidePanelBoundary>
 
       {/* 댓글 사이드 패널 */}
       {selectedPost && (
