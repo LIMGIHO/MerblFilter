@@ -2,28 +2,27 @@
  * 네이버 블로그 "읽음" 처리
  *
  * 동일 브라우저에서 네이버 로그인되어 있을 때, 클릭한 게시글을
- * 네이버 메인/이웃새글 위젯에서 읽음 처리되도록 트리거.
+ * 네이버 메인/이웃새글 위젯에서 읽음 처리되도록 시도.
  *
- * 작동 원리:
- *   - section.blog.naver.com 의 BuddyPostRead API를 호출
- *   - 인증은 .naver.com 도메인의 세션 쿠키(NID_AUT 등)로 처리됨
- *   - credentials: 'include' + Content-Type: form-urlencoded
- *     → CORS preflight 없는 "simple request" → 크로스 오리진 POST 가능
- *   - mode: 'no-cors' → 응답은 못 읽지만 서버는 요청 처리함
+ * 두 가지 방식 제공:
+ *   1) fetch() with no-cors  — 가장 깔끔하지만 SameSite=Lax 차단 거의 확실
+ *   2) hidden <form> POST    — 일부 케이스에서 쿠키 정책이 다르게 동작 가능
  *
  * 한계:
- *   - 사용자가 네이버 미로그인 상태면 서버가 그냥 무시 (부작용 없음)
- *   - 쿠키 SameSite 정책에 따라 차단될 수 있음 (테스트 필요)
- *   - 성공 여부는 코드로 확인 불가 → 네이버 메인에서 육안 확인 필요
+ *   - 네이버 세션 쿠키가 SameSite=Lax/Strict 라면 어떤 방식도 못 함
+ *   - 성공 여부는 코드로 확인 불가 → 네이버 메인에서 육안 확인
+ *   - 부작용 없음: 실패해도 우리 앱 UX에 영향 안 줌
  */
 
 const NAVER_BUDDY_READ_URL = 'https://section.blog.naver.com/ajax/BuddyPostRead.naver';
 
-export async function markNaverPostAsRead(
-  publisherId: string,  // 글쓴이 blogId (예: 'ranto28')
-  postId: string,       // 게시글 logNo
+/* ─────────────────────────────────────────────────────────
+ * 방식 1: fetch with no-cors + credentials: include
+ * ────────────────────────────────────────────────────── */
+export async function markNaverPostAsReadFetch(
+  publisherId: string,
+  postId: string,
 ): Promise<void> {
-  // 입력 검증 — 빈 값이면 호출 자체 안 함
   if (!publisherId || !postId) return;
 
   try {
@@ -31,18 +30,87 @@ export async function markNaverPostAsRead(
       method: 'POST',
       credentials: 'include',
       mode: 'no-cors',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
         logCode: '0',
         logNo: postId,
         publisherId,
       }).toString(),
     });
-    // no-cors 모드라 response.ok 체크 불가 — 성공 여부 불확실
   } catch (e) {
-    // 네트워크 오류 시 조용히 실패. 우리 앱 UX에 영향 없음.
-    console.debug('[markNaverPostAsRead]', e);
+    console.debug('[markNaverPostAsRead/fetch]', e);
   }
+}
+
+/* ─────────────────────────────────────────────────────────
+ * 방식 2: hidden iframe + form POST
+ * ────────────────────────────────────────────────────── */
+const IFRAME_ID = 'naver-read-hidden-iframe';
+
+function ensureHiddenIframe(): HTMLIFrameElement {
+  let iframe = document.getElementById(IFRAME_ID) as HTMLIFrameElement | null;
+  if (iframe) return iframe;
+  iframe = document.createElement('iframe');
+  iframe.id = IFRAME_ID;
+  iframe.name = IFRAME_ID;
+  iframe.setAttribute('aria-hidden', 'true');
+  iframe.tabIndex = -1;
+  iframe.style.position = 'fixed';
+  iframe.style.width = '0';
+  iframe.style.height = '0';
+  iframe.style.border = '0';
+  iframe.style.opacity = '0';
+  iframe.style.pointerEvents = 'none';
+  document.body.appendChild(iframe);
+  return iframe;
+}
+
+export function markNaverPostAsReadForm(
+  publisherId: string,
+  postId: string,
+): void {
+  if (!publisherId || !postId) return;
+  if (typeof document === 'undefined') return;
+
+  try {
+    ensureHiddenIframe();
+
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = NAVER_BUDDY_READ_URL;
+    form.target = IFRAME_ID;
+    form.enctype = 'application/x-www-form-urlencoded';
+    form.style.display = 'none';
+
+    const fields: Record<string, string> = {
+      logCode: '0',
+      logNo: postId,
+      publisherId,
+    };
+    for (const [name, value] of Object.entries(fields)) {
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = name;
+      input.value = value;
+      form.appendChild(input);
+    }
+
+    document.body.appendChild(form);
+    form.submit();
+    document.body.removeChild(form);
+  } catch (e) {
+    console.debug('[markNaverPostAsRead/form]', e);
+  }
+}
+
+/* ─────────────────────────────────────────────────────────
+ * 기본 export — 두 방식 모두 시도
+ * ────────────────────────────────────────────────────── */
+export function markNaverPostAsRead(
+  publisherId: string,
+  postId: string,
+): void {
+  // 두 가지 모두 시도 — 어느 한쪽이라도 통과하면 됨
+  void markNaverPostAsReadFetch(publisherId, postId);
+  markNaverPostAsReadForm(publisherId, postId);
 }
