@@ -8,7 +8,9 @@ import { useUiStore } from '@/store/uiStore';
 import { useBlogStore } from '@/store/blogStore';
 import dynamic from 'next/dynamic';
 import type { SelectedPost } from '@/features/llm/AISidePanel';
-import { markNaverPostAsRead } from '@/lib/naverRead';
+// 네이버 읽음 처리 — SameSite=Lax 쿠키 정책으로 cross-site 호출 불가 (Chrome 80+)
+// 코드는 보존 (크롬 확장 개발 시 재활용 예정). 호출은 비활성화.
+// import { markNaverPostAsRead } from '@/lib/naverRead';
 
 const AISidePanel = dynamic(() => import('@/features/llm/AISidePanel'), { ssr: false });
 const CommentsPanel = dynamic(() => import('./CommentsPanel'), { ssr: false });
@@ -333,12 +335,7 @@ export default function PostList() {
                             href={`https://blog.naver.com/${activeBlogId}/${post.postId}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            onClick={() => {
-                              markAsRead(post.postId);
-                              // 같은 브라우저에 네이버 로그인되어 있으면
-                              // 네이버 메인의 이웃새글 위젯에도 읽음 처리됨
-                              markNaverPostAsRead(activeBlogId, post.postId);
-                            }}
+                            onClick={() => markAsRead(post.postId)}
                             className="flex-1 min-w-0"
                           >
                             <h2 className={`text-base sm:text-lg font-semibold leading-snug tracking-tight
