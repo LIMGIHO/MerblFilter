@@ -222,7 +222,10 @@ export default function AISidePanel({ isOpen, onClose, selectedPost, width, onWi
       if (bodyRes) {
         const bodyJson = await bodyRes.json();
         // 경량 모델(0.5B)은 긴 본문 처리 능력 제한 → 2000자로 제한
-        const bodyLimit = phase2ModelId === 'Qwen2.5-0.5B-Instruct-q4f16_1-MLC' ? 2000 : 6000;
+        // 모바일은 컨텍스트 윈도우가 4096토큰까지 → 본문 1200자로 추가 축소
+        const isMobileNow = typeof window !== 'undefined' && window.innerWidth < 768;
+        const isLight = phase2ModelId === 'Qwen2.5-0.5B-Instruct-q4f16_1-MLC';
+        const bodyLimit = isMobileNow ? 1200 : (isLight ? 2000 : 6000);
         postBody = String(bodyJson.content ?? '').slice(0, bodyLimit);
       }
 
@@ -389,9 +392,20 @@ export default function AISidePanel({ isOpen, onClose, selectedPost, width, onWi
       }, { temperature, maxTokens });
     } catch (e) {
       const raw = String(e);
-      const friendly = raw.includes('ContextWindowSize') || raw.includes('context window')
-        ? '⚠️ 댓글이 너무 많아 컨텍스트 한도를 초과했어요. 댓글 수가 적은 다른 게시글로 시도해주세요.'
-        : `오류: ${raw}`;
+      const lower = raw.toLowerCase();
+      const isContextErr = raw.includes('ContextWindowSize') || raw.includes('context window');
+      const isGpuMapErr = lower.includes('mapasync') || lower.includes('gpubuffer');
+      const isGpuErr = lower.includes('gpu') || lower.includes('webgpu');
+      let friendly: string;
+      if (isContextErr) {
+        friendly = '⚠️ 댓글이 너무 많아 컨텍스트 한도를 초과했어요. 댓글 수가 적은 다른 게시글로 시도해주세요.';
+      } else if (isGpuMapErr) {
+        friendly = '⚠️ 모바일 GPU 메모리가 부족합니다. "본문"만 모드로 전환하거나 데스크탑에서 시도해 주세요.';
+      } else if (isGpuErr) {
+        friendly = '⚠️ GPU 오류가 발생했습니다. 페이지를 새로고침하고 다시 시도해 주세요.';
+      } else {
+        friendly = `오류: ${raw}`;
+      }
       setMessages(prev => prev.map(m =>
         m.id === msgId ? { ...m, content: friendly, isError: true } : m
       ));

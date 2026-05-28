@@ -32,6 +32,11 @@ export function useWebLLM() {
     setPhase2Error(null);
 
     try {
+      // 모바일 감지 — GPU 버퍼 크기 한계 때문에 컨텍스트를 작게
+      const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+      // 모바일: 4096 (mapAsync 실패 방지) / 데스크탑: 32768 (Qwen 2.5 native)
+      const contextWindowSize = isMobile ? 4096 : 32768;
+
       const { CreateMLCEngine } = await import('@mlc-ai/web-llm');
       const engine = await CreateMLCEngine(
         phase2ModelId,
@@ -42,8 +47,7 @@ export function useWebLLM() {
           },
         },
         {
-          // Qwen 2.5는 native 32K 지원. 댓글 전체 + 본문까지 수용
-          context_window_size: 32768,
+          context_window_size: contextWindowSize,
         },
       );
       _engine = engine;
