@@ -406,6 +406,15 @@ export default function TTSPlayer() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items]);
 
+  // ── 플레이리스트 비거나 currentIndex가 -1로 가면 재생 정지 ────────────────
+  // (마지막 아이템 제거 시 오디오가 계속 재생되는 버그 방지)
+  useEffect(() => {
+    if (items.length === 0 || currentIndex === -1) {
+      ttsAudioManager.stop();
+      lastPlayedIndex.current = -1; // 같은 글 재추가 시 다시 재생되도록 리셋
+    }
+  }, [items.length, currentIndex]);
+
   // ── 목소리 변경 → 재시작 ────────────────────────────────────────────────────
   const prevVoiceRef = useRef(voice);
   useEffect(() => {
