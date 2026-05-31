@@ -125,6 +125,26 @@ function extractByDepth(html: string, openTagRegex: RegExp): string {
   return '';
 }
 
+/**
+ * "뉴스내용" 패턴 인용 블록 제거
+ *
+ * Naver 블로그 SE3에서 작성자가 직접 [제목]+[뉴스내용]+[발췌] 형태로
+ * 입력한 뉴스 인용 카드 패턴. OG 카드와 달리 일반 텍스트 컴포넌트라
+ * class 기반 제거 불가. 텍스트 패턴으로 제거.
+ *
+ * 패턴:
+ *   <기사 제목 한 줄>
+ *   뉴스내용
+ *   <기사 발췌 본문 한 줄>
+ */
+function removeNewsQuoteBlocks(text: string): string {
+  return text
+    // "뉴스내용"이 단독 줄로 있고, 앞뒤 한 줄씩 (제목+발췌) 함께 제거
+    .replace(/^[^\n]+\n뉴스\s*내용\n[^\n]+(\n|$)/gm, '')
+    // 위 패턴에 안 잡힌 잔여 "뉴스내용" 단독 줄도 제거
+    .replace(/^뉴스\s*내용\s*$/gm, '');
+}
+
 function extractBody(html: string): string {
   // SmartEditor3 (최신 네이버 블로그)
   let raw = extractByDepth(html, /<div[^>]*class="[^"]*se-main-container[^"]*"[^>]*>/);
@@ -136,7 +156,7 @@ function extractBody(html: string): string {
     // 더 구형
     raw = extractByDepth(html, /<div[^>]*class="[^"]*post_ct[^"]*"[^>]*>/);
   }
-  return raw ? stripHtml(removeOgCards(raw)) : '';
+  return raw ? removeNewsQuoteBlocks(stripHtml(removeOgCards(raw))) : '';
 }
 
 export async function GET(req: NextRequest) {
