@@ -1,15 +1,22 @@
 import { BlogComment, BlogCommentWithReplies, FilteredComment } from '@/domain/comment/types';
 import { FilterSettings } from './filterSettings';
 
-const OWNER_ID = 'ranto28';
-
-/** 댓글이 블로그 주인장인지 판별 */
-export function isOwnerComment(c: BlogComment): boolean {
+/**
+ * 댓글이 블로그 주인장인지 판별
+ *
+ * @param c 댓글
+ * @param ownerId 블로그 주인 식별자 (Naver 블로그의 경우 blogId — 예: 'ranto28', 'xpfkwh56')
+ *
+ * 실측 결과 Naver cbox 응답의 isBlogOwner/writerProfileUserRoleCode 플래그는
+ * 대부분 비어있어 실효 신호는 profileUserId == blogId 비교가 유일하므로,
+ * ownerId(=blogId)를 인자로 받아 동적 비교한다.
+ */
+export function isOwnerComment(c: BlogComment, ownerId: string): boolean {
   return (
     c.isBlogOwner === true ||
     c.writerProfileUserRoleCode === 'OWNER' ||
-    c.profileUserId === OWNER_ID ||
-    c.userName === OWNER_ID
+    c.profileUserId === ownerId ||
+    c.userName === ownerId
   );
 }
 
@@ -121,15 +128,16 @@ export function structureComments(flat: BlogComment[]): BlogCommentWithReplies[]
  */
 export function applyFilters(
   flat: BlogComment[],
-  settings: FilterSettings
+  settings: FilterSettings,
+  ownerId: string,
 ): FilteredComment[] {
   const structured = structureComments(flat);
 
   return structured.map((thread): FilteredComment => {
     // ownerOnly: 주인장이 원댓글이거나, 대댓글 중 주인장이 있는 스레드만
     if (settings.ownerOnly) {
-      const ownerInParent = isOwnerComment(thread);
-      const ownerInReplies = thread.replies.some(isOwnerComment);
+      const ownerInParent = isOwnerComment(thread, ownerId);
+      const ownerInReplies = thread.replies.some((r) => isOwnerComment(r, ownerId));
       if (!ownerInParent && !ownerInReplies) {
         return { ...thread, _isHidden: true, _hiddenReason: 'owner_only' };
       }

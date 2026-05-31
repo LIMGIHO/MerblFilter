@@ -7,6 +7,7 @@ import BlockMenu from './BlockMenu';
 
 interface CommentItemProps {
   comment: FilteredComment;
+  ownerId: string;
   searchKeyword?: string;
   regexMode?: boolean;
   showHidden?: boolean;
@@ -71,8 +72,8 @@ function formatDate(dateStr?: string) {
   return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
-function AuthorButton({ comment, onClick }: { comment: BlogComment; onClick: (e: React.MouseEvent) => void }) {
-  const isOwner = isOwnerComment(comment);
+function AuthorButton({ comment, ownerId, onClick }: { comment: BlogComment; ownerId: string; onClick: (e: React.MouseEvent) => void }) {
+  const isOwner = isOwnerComment(comment, ownerId);
   return (
     <button
       onClick={onClick}
@@ -83,7 +84,7 @@ function AuthorButton({ comment, onClick }: { comment: BlogComment; onClick: (e:
   );
 }
 
-export default function CommentItem({ comment, searchKeyword = '', regexMode = false, showHidden = false }: CommentItemProps) {
+export default function CommentItem({ comment, ownerId, searchKeyword = '', regexMode = false, showHidden = false }: CommentItemProps) {
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const [activeReplyComment, setActiveReplyComment] = useState<BlogComment | null>(null);
 
@@ -94,7 +95,7 @@ export default function CommentItem({ comment, searchKeyword = '', regexMode = f
     setMenu({ x: Math.min(e.clientX, window.innerWidth - 160), y: e.clientY + 8 });
   }, []);
 
-  const isOwner = isOwnerComment(comment);
+  const isOwner = isOwnerComment(comment, ownerId);
 
   if (comment._isHidden && !showHidden) return null;
 
@@ -110,10 +111,10 @@ export default function CommentItem({ comment, searchKeyword = '', regexMode = f
         <ProfileImage imageUrl={comment.userProfileImage} isOwner={isOwner} name={comment.userName || comment.maskedUserName} size="large" />
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-1.5 mb-1">
-            <AuthorButton comment={comment} onClick={(e) => handleAuthorClick(e, comment)} />
+            <AuthorButton comment={comment} ownerId={ownerId} onClick={(e) => handleAuthorClick(e, comment)} />
             {isOwner && (
               <span className="text-xs bg-amber-200 text-amber-800 dark:bg-amber-800 dark:text-amber-100 px-1.5 py-0.5 rounded">
-                👑 메르님
+                👑 주인장
               </span>
             )}
             {comment.sympathyCount !== undefined && comment.sympathyCount > 0 && (
@@ -162,7 +163,7 @@ export default function CommentItem({ comment, searchKeyword = '', regexMode = f
       {comment.replies.length > 0 && (
         <div className="ml-6 sm:ml-10 space-y-1.5">
           {comment.replies.map((reply, i) => {
-            const replyIsOwner = isOwnerComment(reply);
+            const replyIsOwner = isOwnerComment(reply, ownerId);
             return (
               <div key={i} className={`flex items-start gap-1.5 sm:gap-2 p-1.5 sm:p-3 rounded-lg border-l-4
                 ${replyIsOwner
@@ -174,7 +175,7 @@ export default function CommentItem({ comment, searchKeyword = '', regexMode = f
                 <ProfileImage imageUrl={reply.userProfileImage} isOwner={replyIsOwner} name={reply.userName || reply.maskedUserName} size="small" />
                 <div className="flex-1 min-w-0">
                   <div className="flex flex-wrap items-center gap-1 mb-0.5">
-                    <AuthorButton comment={reply} onClick={(e) => handleAuthorClick(e, reply)} />
+                    <AuthorButton comment={reply} ownerId={ownerId} onClick={(e) => handleAuthorClick(e, reply)} />
                     {replyIsOwner && (
                       <span className="text-xs bg-amber-200 text-amber-800 dark:bg-amber-800 dark:text-amber-100 px-1 py-0.5 rounded">
                         👑

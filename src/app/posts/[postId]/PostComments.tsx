@@ -91,9 +91,9 @@ export default function PostComments({ postId, blogId = 'ranto28' }: { postId: s
   }));
 
   const ownerRelatedComments = structuredComments.filter((c) =>
-    isOwnerComment(c) || c.replies.some(isOwnerComment)
+    isOwnerComment(c, blogId) || c.replies.some((r) => isOwnerComment(r, blogId))
   );
-  // AI 품질 필터가 활성화된 경우 전체 댓글 기준으로 필터링 (메르님 뷰에서도 전체 분류 결과 반영)
+  // AI 품질 필터가 활성화된 경우 전체 댓글 기준으로 필터링 (주인장 뷰에서도 전체 분류 결과 반영)
   const baseComments = (qualityFilterActive && Object.keys(llmResultMap).length > 0)
     ? structuredComments
     : (showAllComments ? structuredComments : ownerRelatedComments);
@@ -147,7 +147,7 @@ export default function PostComments({ postId, blogId = 'ranto28' }: { postId: s
             >
               <span className="flex items-center justify-center sm:justify-start gap-1 sm:gap-2">
                 <svg className="w-3.5 h-3.5 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z"/></svg>
-                {showAllComments ? '메르님 댓글만 보기' : '전체 댓글 보기'}
+                {showAllComments ? '주인장 댓글만 보기' : '전체 댓글 보기'}
                 <span className="text-[9px] sm:text-xs bg-blue-100 text-blue-800 px-1 sm:px-2 py-0.5 rounded">
                   {comments.length}
                 </span>
@@ -196,20 +196,20 @@ export default function PostComments({ postId, blogId = 'ranto28' }: { postId: s
                 <ul className="h-full space-y-2 sm:space-y-6 overflow-y-auto w-full px-0.5 sm:px-2">
                   {commentsToShow.length === 0 ? (
                     <li className="text-xs text-gray-400">
-                      {qualityFilterActive ? '읽을만한 댓글이 없습니다.' : showAllComments ? '아직 댓글이 없습니다.' : '메르님이 참여한 댓글이 없습니다.'}
+                      {qualityFilterActive ? '읽을만한 댓글이 없습니다.' : showAllComments ? '아직 댓글이 없습니다.' : '주인장이 참여한 댓글이 없습니다.'}
                     </li>
                   ) : (
                     commentsToShow.map((comment, idx) => (
                       <li key={idx} className="space-y-1.5 sm:space-y-3">
-                        <div className={`flex items-start gap-1.5 sm:gap-3 p-1.5 sm:p-4 rounded-md sm:rounded-lg border shadow-sm ${isOwnerComment(comment) ? 'bg-amber-50 border-amber-200' : 'bg-white border-gray-200'}`}>
-                          <ProfileImage imageUrl={comment.userProfileImage} isOwner={isOwnerComment(comment)} size="large" />
+                        <div className={`flex items-start gap-1.5 sm:gap-3 p-1.5 sm:p-4 rounded-md sm:rounded-lg border shadow-sm ${isOwnerComment(comment, blogId) ? 'bg-amber-50 border-amber-200' : 'bg-white border-gray-200'}`}>
+                          <ProfileImage imageUrl={comment.userProfileImage} isOwner={isOwnerComment(comment, blogId)} size="large" />
                           <div className="flex-1 min-w-0">
                             <div className="flex flex-wrap items-center gap-1 sm:gap-2 mb-0.5 sm:mb-2">
-                              <span className={`font-semibold text-xs sm:text-base ${isOwnerComment(comment) ? 'text-amber-900' : 'text-gray-900'}`}>
+                              <span className={`font-semibold text-xs sm:text-base ${isOwnerComment(comment, blogId) ? 'text-amber-900' : 'text-gray-900'}`}>
                                 {comment.userName || comment.maskedUserName}
                               </span>
-                              {isOwnerComment(comment) && (
-                                <span className="text-[9px] sm:text-xs bg-amber-200 text-amber-800 px-1 sm:px-2 py-0.5 rounded">👑 메르님</span>
+                              {isOwnerComment(comment, blogId) && (
+                                <span className="text-[9px] sm:text-xs bg-amber-200 text-amber-800 px-1 sm:px-2 py-0.5 rounded">👑 주인장</span>
                               )}
                               {comment.sympathyCount !== undefined && comment.sympathyCount > 0 && (
                                 <span className="text-[9px] sm:text-xs text-pink-500">👍 {comment.sympathyCount}</span>
@@ -244,16 +244,16 @@ export default function PostComments({ postId, blogId = 'ranto28' }: { postId: s
                         {comment.replies.length > 0 && (
                           <div className="ml-5 sm:ml-8 space-y-1.5 sm:space-y-3">
                             {comment.replies.map((reply, ri) => (
-                              <div key={ri} className={`flex items-start gap-1 sm:gap-2 p-1.5 sm:p-3 rounded-md sm:rounded-lg border-l-4 ${isOwnerComment(reply) ? 'bg-amber-100 border-l-amber-400' : 'bg-blue-50 border-l-blue-200'}`}>
+                              <div key={ri} className={`flex items-start gap-1 sm:gap-2 p-1.5 sm:p-3 rounded-md sm:rounded-lg border-l-4 ${isOwnerComment(reply, blogId) ? 'bg-amber-100 border-l-amber-400' : 'bg-blue-50 border-l-blue-200'}`}>
                                 <span className="text-gray-400 font-bold text-sm sm:text-lg mt-0.5 sm:mt-1">ㄴ</span>
-                                <ProfileImage imageUrl={reply.userProfileImage} isOwner={isOwnerComment(reply)} size="small" />
+                                <ProfileImage imageUrl={reply.userProfileImage} isOwner={isOwnerComment(reply, blogId)} size="small" />
                                 <div className="flex-1 min-w-0">
                                   <div className="flex flex-wrap items-center gap-1 sm:gap-2 mb-0.5 sm:mb-1">
-                                    <span className={`font-semibold text-[11px] sm:text-sm ${isOwnerComment(reply) ? 'text-amber-900' : 'text-gray-900'}`}>
+                                    <span className={`font-semibold text-[11px] sm:text-sm ${isOwnerComment(reply, blogId) ? 'text-amber-900' : 'text-gray-900'}`}>
                                       {reply.userName || reply.maskedUserName}
                                     </span>
-                                    {isOwnerComment(reply) && (
-                                      <span className="text-[9px] sm:text-xs bg-amber-200 text-amber-800 px-1 sm:px-2 py-0.5 rounded">👑 메르님</span>
+                                    {isOwnerComment(reply, blogId) && (
+                                      <span className="text-[9px] sm:text-xs bg-amber-200 text-amber-800 px-1 sm:px-2 py-0.5 rounded">👑 주인장</span>
                                     )}
                                     <span className="text-[9px] sm:text-xs text-gray-500 bg-gray-100 px-1 sm:px-2 py-0.5 rounded">
                                       {formatDate(reply.regTime || reply.regTimeGmt)}

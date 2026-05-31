@@ -69,7 +69,7 @@ export default function CommentsPanel({
   const [llmResultMap, setLlmResultMap] = useState<Record<number, LlmResult>>({});
   const [qualityFilterActive, setQualityFilterActive] = useState(false);
 
-  // AI 필터 ON → 전체 탭, OFF → 메르님댓글 탭
+  // AI 필터 ON → 전체 탭, OFF → 주인장 댓글 탭
   useEffect(() => {
     setShowAllComments(qualityFilterActive);
   }, [qualityFilterActive]);
@@ -83,7 +83,7 @@ export default function CommentsPanel({
 
   function handleBlock(comment: BlogComment) {
     const target = comment.profileUserId || comment.userName;
-    if (!target || isOwnerComment(comment)) return;
+    if (!target || isOwnerComment(comment, blogId)) return;
     addBlockedUser(target);
     setToastMsg(`"${target}" 차단됨`);
     setTimeout(() => setToastMsg(null), 2500);
@@ -91,7 +91,7 @@ export default function CommentsPanel({
 
   function handleFavorite(comment: BlogComment) {
     const target = comment.profileUserId || comment.userName;
-    if (!target || isOwnerComment(comment)) return;
+    if (!target || isOwnerComment(comment, blogId)) return;
     addFavoriteUser(target);
     setToastMsg(`"${target}" 선호 유저 등록됨`);
     setTimeout(() => setToastMsg(null), 2500);
@@ -175,7 +175,7 @@ export default function CommentsPanel({
   }));
 
   const ownerRelatedComments = structuredComments.filter((c) =>
-    isOwnerComment(c) || c.replies.some(isOwnerComment)
+    isOwnerComment(c, blogId) || c.replies.some((r) => isOwnerComment(r, blogId))
   );
   const baseComments = (qualityFilterActive && Object.keys(llmResultMap).length > 0)
     ? structuredComments
@@ -183,7 +183,7 @@ export default function CommentsPanel({
 
   // 차단 사용자 필터 (주인장은 차단 불가)
   function isBlockedUser(c: BlogComment): boolean {
-    if (isOwnerComment(c) || settings.blockedUsers.length === 0) return false;
+    if (isOwnerComment(c, blogId) || settings.blockedUsers.length === 0) return false;
     const name = c.userName ?? c.maskedUserName ?? '';
     const id = c.profileUserId ?? '';
     return settings.blockedUsers.some((blocked) =>
@@ -204,11 +204,11 @@ export default function CommentsPanel({
   const commentsToShow = baseComments.filter((c) => {
     if (isBlockedUser(c)) return false;
     // 좋아요 필터 (주인장 제외)
-    if (settings.enableLikeFilter && !isOwnerComment(c)) {
+    if (settings.enableLikeFilter && !isOwnerComment(c, blogId)) {
       if ((c.sympathyCount ?? 0) < settings.minLikes) return false;
     }
     // 선호 유저 필터 (주인장 포함 항상 표시)
-    if (settings.enableFavoriteFilter && !isOwnerComment(c) && !isFavoriteUser(c)) return false;
+    if (settings.enableFavoriteFilter && !isOwnerComment(c, blogId) && !isFavoriteUser(c)) return false;
     // AI 품질 필터
     if (!qualityFilterActive || Object.keys(llmResultMap).length === 0) return true;
     const result = llmResultMap[c.commentNo];
@@ -277,13 +277,13 @@ export default function CommentsPanel({
           <div className="flex items-center gap-1.5">
             <button
               onClick={() => {
-                // 메르님 댓글 탭은 AI 필터와 양립 불가 → AI 필터 자동 해제
+                // 주인장 댓글 탭은 AI 필터와 양립 불가 → AI 필터 자동 해제
                 setQualityFilterActive(false);
                 setShowAllComments(false);
               }}
               className={`text-xs px-2.5 py-1 rounded-full transition ${!showAllComments ? 'bg-teal-500 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'}`}
             >
-              메르님 댓글
+              주인장 댓글
               <span className="ml-1 opacity-70">({ownerRelatedComments.length})</span>
             </button>
             <button
@@ -332,25 +332,25 @@ export default function CommentsPanel({
             </div>
           ) : commentsToShow.length === 0 ? (
             <div className="flex items-center justify-center h-32 text-sm text-slate-400 dark:text-slate-500">
-              {qualityFilterActive ? '읽을만한 댓글이 없습니다.' : showAllComments ? '댓글이 없습니다.' : '메르님이 참여한 댓글이 없습니다.'}
+              {qualityFilterActive ? '읽을만한 댓글이 없습니다.' : showAllComments ? '댓글이 없습니다.' : '주인장이 참여한 댓글이 없습니다.'}
             </div>
           ) : (
             commentsToShow.map((comment, idx) => (
               <div key={idx} className="space-y-1.5">
                 {/* 부모 댓글 */}
                 <div className={`group flex items-start gap-2 p-2.5 rounded-xl border text-sm
-                  ${isOwnerComment(comment) ? 'bg-amber-50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-800' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700'}`}>
-                  <ProfileImage imageUrl={comment.userProfileImage} isOwner={isOwnerComment(comment)} size="large" />
+                  ${isOwnerComment(comment, blogId) ? 'bg-amber-50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-800' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700'}`}>
+                  <ProfileImage imageUrl={comment.userProfileImage} isOwner={isOwnerComment(comment, blogId)} size="large" />
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-1 mb-1">
-                      <span className={`font-semibold text-xs ${isOwnerComment(comment) ? 'text-amber-900 dark:text-amber-300' : 'text-slate-800 dark:text-slate-200'}`}>
+                      <span className={`font-semibold text-xs ${isOwnerComment(comment, blogId) ? 'text-amber-900 dark:text-amber-300' : 'text-slate-800 dark:text-slate-200'}`}>
                         {comment.userName || comment.maskedUserName}
                       </span>
-                      {isOwnerComment(comment) && (
-                        <span className="text-[9px] bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-200 px-1.5 py-0.5 rounded">👑 메르님</span>
+                      {isOwnerComment(comment, blogId) && (
+                        <span className="text-[9px] bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-200 px-1.5 py-0.5 rounded">👑 주인장</span>
                       )}
                       {/* hover 시 노출 버튼 (주인장 제외) */}
-                      {!isOwnerComment(comment) && (
+                      {!isOwnerComment(comment, blogId) && (
                         <>
                           <button
                             onClick={() => handleFavorite(comment)}
@@ -409,19 +409,19 @@ export default function CommentsPanel({
                   <div className="ml-6 space-y-1.5">
                     {comment.replies.map((reply, ri) => (
                       <div key={ri} className={`group flex items-start gap-2 p-2 rounded-xl border-l-4 text-sm
-                        ${isOwnerComment(reply) ? 'bg-amber-50 dark:bg-amber-900/10 border-l-amber-400' : 'bg-slate-50 dark:bg-slate-800/60 border-l-slate-200 dark:border-l-slate-700'}`}>
+                        ${isOwnerComment(reply, blogId) ? 'bg-amber-50 dark:bg-amber-900/10 border-l-amber-400' : 'bg-slate-50 dark:bg-slate-800/60 border-l-slate-200 dark:border-l-slate-700'}`}>
                         <span className="text-slate-400 font-bold text-sm mt-0.5 flex-shrink-0">ㄴ</span>
-                        <ProfileImage imageUrl={reply.userProfileImage} isOwner={isOwnerComment(reply)} size="small" />
+                        <ProfileImage imageUrl={reply.userProfileImage} isOwner={isOwnerComment(reply, blogId)} size="small" />
                         <div className="flex-1 min-w-0">
                           <div className="flex flex-wrap items-center gap-1 mb-0.5">
-                            <span className={`font-semibold text-xs ${isOwnerComment(reply) ? 'text-amber-900 dark:text-amber-300' : 'text-slate-800 dark:text-slate-200'}`}>
+                            <span className={`font-semibold text-xs ${isOwnerComment(reply, blogId) ? 'text-amber-900 dark:text-amber-300' : 'text-slate-800 dark:text-slate-200'}`}>
                               {reply.userName || reply.maskedUserName}
                             </span>
-                            {isOwnerComment(reply) && (
-                              <span className="text-[9px] bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-200 px-1.5 py-0.5 rounded">👑 메르님</span>
+                            {isOwnerComment(reply, blogId) && (
+                              <span className="text-[9px] bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-200 px-1.5 py-0.5 rounded">👑 주인장</span>
                             )}
                             {/* hover 시 노출 버튼 (주인장 제외) */}
-                            {!isOwnerComment(reply) && (
+                            {!isOwnerComment(reply, blogId) && (
                               <>
                                 <button
                                   onClick={() => handleFavorite(reply)}

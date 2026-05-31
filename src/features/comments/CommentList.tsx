@@ -10,9 +10,10 @@ interface CommentListProps {
   searchKeyword?: string;
   regexMode?: boolean;
   showHidden?: boolean;
+  ownerId: string;
 }
 
-export default function CommentList({ comments, searchKeyword, regexMode, showHidden }: CommentListProps) {
+export default function CommentList({ comments, searchKeyword, regexMode, showHidden, ownerId }: CommentListProps) {
   const parentRef = useRef<HTMLDivElement>(null);
 
   // 가상 스크롤: 표시할 항목만 렌더
@@ -50,7 +51,7 @@ export default function CommentList({ comments, searchKeyword, regexMode, showHi
               }}
             >
               <div className="px-1 sm:px-2 py-1">
-                <CommentItem
+                <CommentItem ownerId={ownerId}
                   comment={comment}
                   searchKeyword={searchKeyword}
                   regexMode={regexMode}

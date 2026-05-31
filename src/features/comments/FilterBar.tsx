@@ -56,7 +56,7 @@ export default function FilterBar({ totalCount, visibleCount }: FilterBarProps) 
 
           {/* ownerOnly */}
           <Toggle
-            label="👑 메르님 참여 댓글만"
+            label="👑 주인장 참여 댓글만"
             checked={settings.ownerOnly}
             onChange={(v) => setSettings({ ownerOnly: v })}
           />
