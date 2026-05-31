@@ -158,11 +158,78 @@ function extractByDepth(html: string, openTagRegex: RegExp): string {
  * → 실제 뉴스 인용 카드만 정확히 잡고,
  *   일반 텍스트 단락은 컴포넌트 단위로 보존.
  */
+/**
+ * 뉴스 인용 카드 제거 (단락 단위)
+ *
+ * 카드 구조 (Naver SE3 작성자가 직접 입력한 패턴):
+ *   <p>...<a>제목</a>...</p>
+ *   <p>뉴스내용</p>          ← 정확히 이 텍스트만 들어있는 단락 식별 마커
+ *   <p>...<a>발췌</a>...</p>
+ *
+ * 동작:
+ *   1) 모든 <p>...</p> 단락 추출 (위치 + 본문 텍스트)
+ *   2) 본문 텍스트가 정확히 "뉴스내용" 또는 "뉴스 내용"인 단락 마킹
+ *   3) 마킹된 단락의 직전/직후 "비어있지 않은" 단락도 마킹
+ *      (사이에 빈 단락 ​ zero-width만 있는 경우 건너뛰며 탐색)
+ *   4) 마킹된 단락들을 위치 기반 역순으로 통째 제거
+ *
+ * 안전성:
+ *   - "뉴스내용" 정확 매칭 → "뉴스내용을 보면..." 같은 일반 문장 영향 없음
+ *   - 단락 단위 → se-component 묶음에 영향받지 않음
+ *   - 변형 없는 단순 텍스트 비교 → false positive 극히 낮음
+ */
+function removeNewsQuoteParagraphs(html: string): string {
+  const paragraphs: { start: number; end: number; text: string }[] = [];
+  const reP = /<p[^>]*>([\s\S]*?)<\/p>/g;
+  let m: RegExpExecArray | null;
+  while ((m = reP.exec(html)) !== null) {
+    const inner = m[1];
+    const text = inner
+      .replace(/<[^>]+>/g, '')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/[​‌‍]/g, '') // zero-width 문자 제거
+      .replace(/\s+/g, ' ')
+      .trim();
+    paragraphs.push({ start: m.index, end: m.index + m[0].length, text });
+  }
+
+  const toRemove = new Set<number>();
+  for (let i = 0; i < paragraphs.length; i++) {
+    const t = paragraphs[i].text;
+    if (t === '뉴스내용' || t === '뉴스 내용') {
+      toRemove.add(i);
+      // 직전 비어있지 않은 단락
+      for (let j = i - 1; j >= 0; j--) {
+        if (paragraphs[j].text !== '') {
+          toRemove.add(j);
+          break;
+        }
+      }
+      // 직후 비어있지 않은 단락
+      for (let j = i + 1; j < paragraphs.length; j++) {
+        if (paragraphs[j].text !== '') {
+          toRemove.add(j);
+          break;
+        }
+      }
+    }
+  }
+
+  if (toRemove.size === 0) return html;
+
+  // 위치 역순으로 제거 → 인덱스 무너지지 않음
+  const ranges = Array.from(toRemove)
+    .map((i) => paragraphs[i])
+    .sort((a, b) => b.start - a.start);
+  let out = html;
+  for (const r of ranges) {
+    out = out.slice(0, r.start) + out.slice(r.end);
+  }
+  return out;
+}
+
 function removeNewsQuoteCards(html: string): string {
-  // ⚠️ 일시 비활성화 — Naver SE3가 여러 본문 단락을 한 se-component에 묶어,
-  // 컴포넌트 단위 제거 시 항목 다수가 함께 사라지는 부작용 발생.
-  // 추후 단락(<p>) 단위 정교한 매칭으로 재구현 필요.
-  return html;
+  return removeNewsQuoteParagraphs(html);
 }
 
 function extractBody(html: string): string {
