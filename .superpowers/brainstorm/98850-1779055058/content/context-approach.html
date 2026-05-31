@@ -1,0 +1,51 @@
+<h2>본문 / 댓글 분리 처리 방식</h2>
+<p class="subtitle">AI가 어떤 컨텍스트를 쓸지 어떻게 결정할까요?</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>자동 감지</h3>
+      <p>질문 키워드를 분석해서 자동 선택</p>
+      <ul style="margin-top:8px;font-size:13px;color:#64748b;padding-left:16px">
+        <li>"요약", "핵심", "분석" → 본문만</li>
+        <li>"댓글", "반응", "사람들" → 댓글만</li>
+        <li>그 외 → 본문 + 댓글</li>
+      </ul>
+      <div style="margin-top:8px;font-size:12px;color:#0d9488;background:#f0fdfa;padding:6px 8px;border-radius:6px">
+        👍 사용자가 신경 쓸 필요 없음
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>컨텍스트 토글</h3>
+      <p>입력창 위에 버튼으로 직접 선택</p>
+      <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
+        <span style="padding:4px 10px;border-radius:20px;background:#0d9488;color:white;font-size:12px">📄 본문</span>
+        <span style="padding:4px 10px;border-radius:20px;background:#e2e8f0;color:#64748b;font-size:12px">💬 댓글</span>
+        <span style="padding:4px 10px;border-radius:20px;background:#e2e8f0;color:#64748b;font-size:12px">전체</span>
+      </div>
+      <div style="margin-top:8px;font-size:12px;color:#0d9488;background:#f0fdfa;padding:6px 8px;border-radius:6px">
+        👍 명확한 제어 / 오작동 없음
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>A + B 조합</h3>
+      <p>자동 감지 기본 + 토글로 수동 오버라이드</p>
+      <div style="margin-top:8px;font-size:13px;color:#64748b">
+        자동으로 컨텍스트 선택하되,<br>
+        사용자가 원하면 직접 바꿀 수 있음
+      </div>
+      <div style="margin-top:8px;font-size:12px;color:#0d9488;background:#f0fdfa;padding:6px 8px;border-radius:6px">
+        👍 가장 유연 / 복잡도 조금 높음
+      </div>
+    </div>
+  </div>
+</div>

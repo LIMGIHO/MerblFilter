@@ -1,0 +1,61 @@
+<h2>AI 패널 레이아웃 — 컨텍스트 토글 위치</h2>
+<p class="subtitle">토글이 어디 있으면 가장 자연스러울까요?</p>
+
+<div class="split">
+  <!-- Option A: 퀵 프롬프트 위 -->
+  <div class="mockup" data-choice="a" onclick="toggleSelect(this)" style="cursor:pointer">
+    <div class="mockup-header">A — 퀵 프롬프트 위쪽</div>
+    <div class="mockup-body" style="padding:12px;font-size:12px">
+      <!-- 대화 영역 -->
+      <div style="background:#f8fafc;border-radius:8px;padding:8px;margin-bottom:8px;height:80px;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:11px">
+        대화 영역
+      </div>
+      <!-- 컨텍스트 토글 -->
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+        <span style="font-size:10px;color:#94a3b8">컨텍스트:</span>
+        <span style="padding:2px 8px;border-radius:12px;background:#0d9488;color:white;font-size:10px">📄 본문</span>
+        <span style="padding:2px 8px;border-radius:12px;background:#e2e8f0;color:#64748b;font-size:10px">💬 댓글</span>
+        <span style="padding:2px 8px;border-radius:12px;background:#e2e8f0;color:#64748b;font-size:10px">전체</span>
+        <span style="font-size:9px;color:#0d9488;margin-left:2px">← 자동감지</span>
+      </div>
+      <!-- 퀵 프롬프트 -->
+      <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px">
+        <span style="padding:2px 8px;border-radius:12px;border:1px solid #99f6e4;color:#0d9488;font-size:10px">3줄 요약</span>
+        <span style="padding:2px 8px;border-radius:12px;border:1px solid #99f6e4;color:#0d9488;font-size:10px">댓글 반응</span>
+        <span style="padding:2px 8px;border-radius:12px;border:1px solid #99f6e4;color:#0d9488;font-size:10px">스팸 찾기</span>
+      </div>
+      <!-- 입력창 -->
+      <div style="background:#e2e8f0;border-radius:8px;height:28px;display:flex;align-items:center;padding:0 8px;color:#94a3b8;font-size:10px">
+        질문 입력...
+      </div>
+    </div>
+  </div>
+
+  <!-- Option B: 입력창 왼쪽 아이콘 -->
+  <div class="mockup" data-choice="b" onclick="toggleSelect(this)" style="cursor:pointer">
+    <div class="mockup-header">B — 입력창 옆 아이콘 버튼</div>
+    <div class="mockup-body" style="padding:12px;font-size:12px">
+      <!-- 대화 영역 -->
+      <div style="background:#f8fafc;border-radius:8px;padding:8px;margin-bottom:8px;height:80px;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:11px">
+        대화 영역
+      </div>
+      <!-- 퀵 프롬프트 -->
+      <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px">
+        <span style="padding:2px 8px;border-radius:12px;border:1px solid #99f6e4;color:#0d9488;font-size:10px">3줄 요약</span>
+        <span style="padding:2px 8px;border-radius:12px;border:1px solid #99f6e4;color:#0d9488;font-size:10px">댓글 반응</span>
+        <span style="padding:2px 8px;border-radius:12px;border:1px solid #99f6e4;color:#0d9488;font-size:10px">스팸 찾기</span>
+      </div>
+      <!-- 입력창 + 토글 아이콘 -->
+      <div style="display:flex;gap:4px;align-items:center">
+        <div style="width:28px;height:28px;border-radius:8px;border:1px solid #e2e8f0;display:flex;align-items:center;justify-content:center;font-size:13px;cursor:pointer" title="컨텍스트 선택">📄</div>
+        <div style="flex:1;background:#e2e8f0;border-radius:8px;height:28px;display:flex;align-items:center;padding:0 8px;color:#94a3b8;font-size:10px">
+          질문 입력...
+        </div>
+        <div style="width:28px;height:28px;background:#0d9488;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:12px">→</div>
+      </div>
+      <div style="font-size:10px;color:#94a3b8;margin-top:4px;text-align:center">
+        📄 아이콘 클릭 → 컨텍스트 팝업
+      </div>
+    </div>
+  </div>
+</div>

@@ -26,6 +26,36 @@ function stripHtml(html: string): string {
 }
 
 // ── TTS 품질 향상 후처리 ──────────────────────────────────────────────────────
+/**
+ * 한자어 숫자 한국어 표기 변환
+ * 1 → 일, 11 → 십일, 2018 → 이천십팔
+ * 게시글 본문에서 흔한 1~9999 범위 처리. 그 이상은 원본 유지.
+ */
+const SINO_DIGITS = ['', '일', '이', '삼', '사', '오', '육', '칠', '팔', '구'];
+function toSinoKorean(numStr: string): string {
+  const n = parseInt(numStr, 10);
+  if (!Number.isFinite(n) || n < 0) return numStr;
+  if (n === 0) return '영';
+  if (n < 10) return SINO_DIGITS[n];
+  if (n < 20) return '십' + (n % 10 ? SINO_DIGITS[n % 10] : '');
+  if (n < 100) {
+    const t = Math.floor(n / 10);
+    const o = n % 10;
+    return (t === 1 ? '' : SINO_DIGITS[t]) + '십' + (o ? SINO_DIGITS[o] : '');
+  }
+  if (n < 1000) {
+    const h = Math.floor(n / 100);
+    const rest = n % 100;
+    return (h === 1 ? '' : SINO_DIGITS[h]) + '백' + (rest ? toSinoKorean(String(rest)) : '');
+  }
+  if (n < 10000) {
+    const k = Math.floor(n / 1000);
+    const rest = n % 1000;
+    return (k === 1 ? '' : SINO_DIGITS[k]) + '천' + (rest ? toSinoKorean(String(rest)) : '');
+  }
+  return numStr; // 1만 이상은 Azure TTS가 잘 읽음
+}
+
 function cleanTextForTTS(text: string): string {
   return text
     .replace(/https?:\/\/\S+/g, '')
@@ -39,10 +69,11 @@ function cleanTextForTTS(text: string): string {
     .replace(/^[ \t]*(이미지|그림|자료|사진|참고|참조)\s*[:：].*/gmi, '')
     .replace(/^[ \t]*[※◎☞▶▷►→•·]\s*.*(출처|링크|참고|원문|클릭).*/gmi, '')
     .replace(/([^\n\s\d])(\s*)(\d{1,2}[.)]) /g, '$1. $3 ')
-    // "11. 2018년" 같은 두자리+ 리스트 마커+연도 패턴 → TTS가 "11.2018"로 합쳐 읽는 것 방지
-    // "번."을 끼워 넣어 명확한 구분 (예: "11. 2018" → "11번. 2018")
-    // 단일 자리 숫자(1., 2., ...)는 Azure TTS가 자연스럽게 처리하므로 제외 (2자리 이상만)
-    .replace(/(\d{2,})\.\s+(?=\d)/g, '$1번. ')
+    // 리스트 마커+연도 패턴 ("9. 2018년", "14. 2018년" 등) → Azure TTS가 합쳐 읽음
+    // 양쪽 숫자를 한글 표기로 명시 변환 → "구. 이천십팔년", "십사. 이천십팔년"
+    // 매칭 조건: 숫자.공백+숫자 뒤에 한글 (년/월/일 등 시간 단위 등장)
+    .replace(/(\d{1,3})\.\s+(\d{1,4})(?=[가-힣])/g,
+      (_, a, b) => `${toSinoKorean(a)}. ${toSinoKorean(b)}`)
     // 카운터 단위 앞 한자어 숫자 → 한국 고유어 숫자 변환 (TTS 자연스러움)
     // 예: "1대도" → "한 대도", "2명" → "두 명"
     // 조건: 앞에 다른 숫자 없음(11대 등 두자리는 제외), 뒤에 안전한 조사·구두점

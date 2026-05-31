@@ -159,11 +159,10 @@ function extractByDepth(html: string, openTagRegex: RegExp): string {
  *   일반 텍스트 단락은 컴포넌트 단위로 보존.
  */
 function removeNewsQuoteCards(html: string): string {
-  return removeDivsByClass(
-    html,
-    /\bse-component\b[^"]*\bse-text\b/,
-    (inner) => /뉴스\s*내용/.test(inner) && /<a\s/i.test(inner),
-  );
+  // ⚠️ 일시 비활성화 — Naver SE3가 여러 본문 단락을 한 se-component에 묶어,
+  // 컴포넌트 단위 제거 시 항목 다수가 함께 사라지는 부작용 발생.
+  // 추후 단락(<p>) 단위 정교한 매칭으로 재구현 필요.
+  return html;
 }
 
 function extractBody(html: string): string {
