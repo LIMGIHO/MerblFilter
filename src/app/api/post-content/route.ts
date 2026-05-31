@@ -8,7 +8,11 @@ import { NextRequest, NextResponse } from 'next/server';
 /**
  * 특정 class를 포함하는 div 블록을 div depth tracking으로 통째 제거
  */
-function removeDivsByClass(html: string, classPattern: RegExp): string {
+function removeDivsByClass(
+  html: string,
+  classPattern: RegExp,
+  contentCheck?: (innerHtml: string) => boolean,
+): string {
   let result = '';
   let i = 0;
 
@@ -24,11 +28,11 @@ function removeDivsByClass(html: string, classPattern: RegExp): string {
     }
 
     if (classPattern.test(m[0])) {
-      // 매칭 div 이전까지 보존
-      result += html.slice(i, m.index);
-      // depth tracking으로 닫히는 </div>까지 통째 건너뜀
+      // depth tracking으로 닫히는 </div> 위치 찾기
       let depth = 1;
       let j = m.index + m[0].length;
+      const innerStart = j;
+      let innerEnd = j;
       while (j < html.length && depth > 0) {
         const openIdx = html.indexOf('<div', j);
         const closeIdx = html.indexOf('</div>', j);
@@ -38,10 +42,24 @@ function removeDivsByClass(html: string, classPattern: RegExp): string {
           j = openIdx + 4;
         } else {
           depth--;
+          if (depth === 0) innerEnd = closeIdx;
           j = closeIdx + 6;
         }
       }
-      i = j;
+
+      // contentCheck가 있으면 검사. 통과(=true)할 때만 제거.
+      // 검사기 없으면 무조건 제거 (기존 동작 호환)
+      const innerHtml = html.slice(innerStart, innerEnd);
+      const shouldRemove = !contentCheck || contentCheck(innerHtml);
+
+      if (shouldRemove) {
+        result += html.slice(i, m.index);
+        i = j;
+      } else {
+        // 매칭 div 자체는 보존하고 다음 char로 진행
+        result += html.slice(i, m.index + m[0].length);
+        i = m.index + m[0].length;
+      }
     } else {
       // 매칭 안 됨 — div 태그까지 포함해서 보존하고 계속
       result += html.slice(i, m.index + m[0].length);
@@ -132,24 +150,19 @@ function extractByDepth(html: string, openTagRegex: RegExp): string {
  * 입력한 뉴스 인용 카드. OG 카드와 달리 일반 텍스트 컴포넌트라
  * class 단독으로는 식별 불가.
  *
+ * 매칭 단위: <div class="se-component se-text"> 컴포넌트 (depth tracking)
  * 안전 조건 (둘 다 만족할 때만 제거):
- *   1) <div class="se-module-text"> 모듈 내부
- *   2) "뉴스내용" 또는 "뉴스 내용" 텍스트 포함
- *   3) <a> 링크 태그 1개 이상 포함
+ *   1) "뉴스내용" 또는 "뉴스 내용" 텍스트 포함
+ *   2) <a> 링크 태그 1개 이상 포함
  *
  * → 실제 뉴스 인용 카드만 정확히 잡고,
- *   누가 "뉴스 내용" 만 텍스트로 쓴 경우(링크 없음)는 보존.
+ *   일반 텍스트 단락은 컴포넌트 단위로 보존.
  */
 function removeNewsQuoteCards(html: string): string {
-  // se-module-text 블록 단위로 매칭 (내부에 nested div 없음 → non-greedy 안전)
-  return html.replace(
-    /<div[^>]*\bclass="[^"]*\bse-module-text\b[^"]*"[^>]*>([\s\S]*?)<\/div>/g,
-    (match, inner: string) => {
-      const hasNewsLabel = /뉴스\s*내용/.test(inner);
-      const hasAnchor = /<a\s/i.test(inner);
-      // 두 조건 모두 만족 → 뉴스 인용 카드로 판정, 제거
-      return hasNewsLabel && hasAnchor ? '' : match;
-    },
+  return removeDivsByClass(
+    html,
+    /\bse-component\b[^"]*\bse-text\b/,
+    (inner) => /뉴스\s*내용/.test(inner) && /<a\s/i.test(inner),
   );
 }
 
