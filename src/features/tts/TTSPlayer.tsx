@@ -88,6 +88,11 @@ function cleanTextForTTS(text: string): string {
       },
     )
     .replace(/[ \t]{2,}/g, ' ')
+    // Naver SE3 빈 단락 정규화 (zero-width 문자가 빈 줄 자리에 들어가 \n{2,} 패턴 회피하는 문제 해결)
+    //   1) zero-width 문자 일괄 제거 (U+200B/200C/200D/FEFF)
+    //   2) 공백/탭만 있는 줄 → 진짜 빈 줄(\n\n)로 정규화
+    .replace(/[​‌‍﻿]/g, '')
+    .replace(/\n[ \t]*\n/g, '\n\n')
     .replace(/\n{3,}/g, '\n\n')
     // 단락 구분(\n\n): 말줄임표(...)로 변환 → Azure Neural TTS가 단락 경계에서 충분히 쉼
     .replace(/([^.!?…。？！])\n{2,}/g, '$1... ')
