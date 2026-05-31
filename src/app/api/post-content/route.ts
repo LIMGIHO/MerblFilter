@@ -126,23 +126,31 @@ function extractByDepth(html: string, openTagRegex: RegExp): string {
 }
 
 /**
- * "뉴스내용" 패턴 인용 블록 제거
+ * "뉴스내용" 패턴 인용 카드 HTML 제거
  *
  * Naver 블로그 SE3에서 작성자가 직접 [제목]+[뉴스내용]+[발췌] 형태로
- * 입력한 뉴스 인용 카드 패턴. OG 카드와 달리 일반 텍스트 컴포넌트라
- * class 기반 제거 불가. 텍스트 패턴으로 제거.
+ * 입력한 뉴스 인용 카드. OG 카드와 달리 일반 텍스트 컴포넌트라
+ * class 단독으로는 식별 불가.
  *
- * 패턴:
- *   <기사 제목 한 줄>
- *   뉴스내용
- *   <기사 발췌 본문 한 줄>
+ * 안전 조건 (둘 다 만족할 때만 제거):
+ *   1) <div class="se-module-text"> 모듈 내부
+ *   2) "뉴스내용" 또는 "뉴스 내용" 텍스트 포함
+ *   3) <a> 링크 태그 1개 이상 포함
+ *
+ * → 실제 뉴스 인용 카드만 정확히 잡고,
+ *   누가 "뉴스 내용" 만 텍스트로 쓴 경우(링크 없음)는 보존.
  */
-function removeNewsQuoteBlocks(text: string): string {
-  return text
-    // "뉴스내용"이 단독 줄로 있고, 앞뒤 한 줄씩 (제목+발췌) 함께 제거
-    .replace(/^[^\n]+\n뉴스\s*내용\n[^\n]+(\n|$)/gm, '')
-    // 위 패턴에 안 잡힌 잔여 "뉴스내용" 단독 줄도 제거
-    .replace(/^뉴스\s*내용\s*$/gm, '');
+function removeNewsQuoteCards(html: string): string {
+  // se-module-text 블록 단위로 매칭 (내부에 nested div 없음 → non-greedy 안전)
+  return html.replace(
+    /<div[^>]*\bclass="[^"]*\bse-module-text\b[^"]*"[^>]*>([\s\S]*?)<\/div>/g,
+    (match, inner: string) => {
+      const hasNewsLabel = /뉴스\s*내용/.test(inner);
+      const hasAnchor = /<a\s/i.test(inner);
+      // 두 조건 모두 만족 → 뉴스 인용 카드로 판정, 제거
+      return hasNewsLabel && hasAnchor ? '' : match;
+    },
+  );
 }
 
 function extractBody(html: string): string {
@@ -156,7 +164,7 @@ function extractBody(html: string): string {
     // 더 구형
     raw = extractByDepth(html, /<div[^>]*class="[^"]*post_ct[^"]*"[^>]*>/);
   }
-  return raw ? removeNewsQuoteBlocks(stripHtml(removeOgCards(raw))) : '';
+  return raw ? stripHtml(removeOgCards(removeNewsQuoteCards(raw))) : '';
 }
 
 export async function GET(req: NextRequest) {
