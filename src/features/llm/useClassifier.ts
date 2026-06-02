@@ -4,12 +4,14 @@ import { useEffect, useRef, useCallback } from 'react';
 import { useLlmStore } from '@/store/llmStore';
 import { BlogComment } from '@/domain/comment/types';
 
-type LlmLabel = 'spam' | 'promo' | 'negative' | 'neutral' | 'positive';
+export type QualityLabel = 'worth_reading' | 'noise' | 'spam';
+export type QualityTag = '경험공유' | '의견있음' | 'noise' | 'spam';
 
 export interface ClassifyResult {
   commentNo: number;
-  label: LlmLabel;
-  score: number;
+  label: QualityLabel;
+  score: number;   // 0~100
+  tag: QualityTag;
 }
 
 interface UseClassifierReturn {
@@ -21,7 +23,6 @@ interface UseClassifierReturn {
 export function useClassifier(): UseClassifierReturn {
   const workerRef = useRef<Worker | null>(null);
   const {
-    phase1ModelId,
     phase1Status,
     setPhase1Status,
     setPhase1Progress,
@@ -73,8 +74,8 @@ export function useClassifier(): UseClassifierReturn {
     setPhase1Status('downloading');
     setPhase1Progress(0);
     setPhase1Error(null);
-    workerRef.current.postMessage({ type: 'load', payload: { modelId: phase1ModelId } });
-  }, [phase1ModelId]);
+    workerRef.current.postMessage({ type: 'load', payload: {} });
+  }, []);
 
   const classify = useCallback(
     (comments: BlogComment[], onResult: (results: ClassifyResult[]) => void) => {
