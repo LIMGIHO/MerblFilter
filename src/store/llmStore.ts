@@ -41,7 +41,6 @@ export interface LlmStore {
   phase1Enabled: boolean;
   phase1Status: ModelStatus;
   phase1Progress: number;
-  phase1ModelId: string;
   phase1Error: string | null;
 
   // Phase 2 (WebLLM — 요약/프롬프트)
@@ -75,7 +74,6 @@ export const useLlmStore = create<LlmStore>()(
       phase1Enabled: false,
       phase1Status: 'idle',
       phase1Progress: 0,
-      phase1ModelId: 'Xenova/bert-base-multilingual-uncased-sentiment',
       phase1Error: null,
 
       phase2Enabled: false,
@@ -122,7 +120,6 @@ export const useLlmStore = create<LlmStore>()(
       },
       partialize: (s) => ({
         phase1Enabled: s.phase1Enabled,
-        phase1ModelId: s.phase1ModelId,
         phase2Enabled: s.phase2Enabled,
         phase2ModelId: s.phase2ModelId,
         phase2HasDownloaded: s.phase2HasDownloaded,
