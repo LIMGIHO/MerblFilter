@@ -4,8 +4,9 @@ import { useEffect, useState, useCallback } from 'react';
 import { BlogComment } from '@/domain/comment/types';
 import { isOwnerComment } from '@/domain/filter/filterEngine';
 import LocalLLMPanel from '@/features/llm/LocalLLMPanel';
+import type { QualityLabel, QualityTag, ClassifyResult } from '@/features/llm/useClassifier';
 
-type LlmLabel = 'spam' | 'promo' | 'negative' | 'neutral' | 'positive';
+type LlmResult = { label: QualityLabel; score: number; tag: QualityTag };
 
 interface CommentWithReplies extends BlogComment {
   replies: BlogComment[];
@@ -39,8 +40,6 @@ function formatDate(dateStr?: string) {
   return `${d.getFullYear()}.${(d.getMonth() + 1).toString().padStart(2, '0')}.${d.getDate().toString().padStart(2, '0')} ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
 }
 
-// filterEngine의 isOwnerComment를 import해서 사용 (profileUserId, userName fallback 포함)
-
 export default function PostComments({ postId, blogId = 'ranto28' }: { postId: string; blogId?: string }) {
   const [showFiltered, setShowFiltered] = useState(false);
   const [showAllComments, setShowAllComments] = useState(false);
@@ -48,8 +47,8 @@ export default function PostComments({ postId, blogId = 'ranto28' }: { postId: s
   const [isLoading, setIsLoading] = useState(false);
   const [lastRefreshTime, setLastRefreshTime] = useState<Date | null>(null);
   const [isMobile, setIsMobile] = useState(false);
-  const [llmLabelMap, setLlmLabelMap] = useState<Record<number, LlmLabel>>({});
-  const [hiddenLabels, setHiddenLabels] = useState<Set<LlmLabel>>(new Set());
+  const [llmResultMap, setLlmResultMap] = useState<Record<number, LlmResult>>({});
+  const [qualityFilterActive, setQualityFilterActive] = useState(false);
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768);
@@ -67,7 +66,8 @@ export default function PostComments({ postId, blogId = 'ranto28' }: { postId: s
       if (data.result?.commentList) {
         setComments(data.result.commentList);
         setLastRefreshTime(new Date());
-        setLlmLabelMap({});
+        setLlmResultMap({});
+        setQualityFilterActive(false);
       }
     } catch (e) {
       console.error('댓글 로딩 실패:', e);
@@ -88,16 +88,18 @@ export default function PostComments({ postId, blogId = 'ranto28' }: { postId: s
   }));
 
   const ownerRelatedComments = structuredComments.filter((c) =>
-    isOwnerComment(c) || c.replies.some(isOwnerComment)
+    isOwnerComment(c, blogId) || c.replies.some((r) => isOwnerComment(r, blogId))
   );
-  // AI 레이블 필터가 활성화된 경우 전체 댓글 기준으로 필터링 (메르님 뷰에서도 전체 분류 결과 반영)
-  const baseComments = (hiddenLabels.size > 0) ? structuredComments : (showAllComments ? structuredComments : ownerRelatedComments);
-  const commentsToShow = baseComments
-    .filter((c) => {
-      if (hiddenLabels.size === 0) return true;
-      const label = llmLabelMap[c.commentNo];
-      return !label || !hiddenLabels.has(label);
-    });
+
+  const baseComments = (qualityFilterActive && Object.keys(llmResultMap).length > 0)
+    ? structuredComments
+    : (showAllComments ? structuredComments : ownerRelatedComments);
+
+  const commentsToShow = baseComments.filter((c) => {
+    if (!qualityFilterActive || Object.keys(llmResultMap).length === 0) return true;
+    const result = llmResultMap[c.commentNo];
+    return !result || result.label === 'worth_reading';
+  });
 
   return (
     <main className="p-1 sm:p-6 h-screen">
@@ -140,7 +142,7 @@ export default function PostComments({ postId, blogId = 'ranto28' }: { postId: s
             >
               <span className="flex items-center justify-center sm:justify-start gap-1 sm:gap-2">
                 <svg className="w-3.5 h-3.5 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z"/></svg>
-                {showAllComments ? '메르님 댓글만 보기' : '전체 댓글 보기'}
+                {showAllComments ? '주인장 댓글만 보기' : '전체 댓글 보기'}
                 <span className="text-[9px] sm:text-xs bg-blue-100 text-blue-800 px-1 sm:px-2 py-0.5 rounded">
                   {comments.length}
                 </span>
@@ -166,7 +168,17 @@ export default function PostComments({ postId, blogId = 'ranto28' }: { postId: s
 
           {showFiltered && (
             <div className="ml-auto">
-              <LocalLLMPanel comments={comments} onLabelsUpdate={setLlmLabelMap} labelMap={llmLabelMap} onHideLabelsChange={setHiddenLabels} />
+              <LocalLLMPanel
+                comments={comments}
+                onResultsUpdate={(results: ClassifyResult[]) => {
+                  const map: Record<number, LlmResult> = {};
+                  results.forEach((r) => { map[r.commentNo] = { label: r.label, score: r.score, tag: r.tag }; });
+                  setLlmResultMap(map);
+                }}
+                resultMap={llmResultMap}
+                qualityFilterActive={qualityFilterActive}
+                onQualityFilterToggle={setQualityFilterActive}
+              />
             </div>
           )}
         </div>
@@ -179,78 +191,85 @@ export default function PostComments({ postId, blogId = 'ranto28' }: { postId: s
                 <ul className="h-full space-y-2 sm:space-y-6 overflow-y-auto w-full px-0.5 sm:px-2">
                   {commentsToShow.length === 0 ? (
                     <li className="text-xs text-gray-400">
-                      {hiddenLabels.size > 0 ? '해당 레이블의 댓글이 없습니다.' : showAllComments ? '아직 댓글이 없습니다.' : '메르님이 참여한 댓글이 없습니다.'}
+                      {qualityFilterActive ? '읽을만한 댓글이 없습니다.' : showAllComments ? '아직 댓글이 없습니다.' : '주인장이 참여한 댓글이 없습니다.'}
                     </li>
                   ) : (
-                    commentsToShow.map((comment, idx) => (
-                      <li key={idx} className="space-y-1.5 sm:space-y-3">
-                        <div className={`flex items-start gap-1.5 sm:gap-3 p-1.5 sm:p-4 rounded-md sm:rounded-lg border shadow-sm ${isOwnerComment(comment) ? 'bg-amber-50 border-amber-200' : 'bg-white border-gray-200'}`}>
-                          <ProfileImage imageUrl={comment.userProfileImage} isOwner={isOwnerComment(comment)} size="large" />
-                          <div className="flex-1 min-w-0">
-                            <div className="flex flex-wrap items-center gap-1 sm:gap-2 mb-0.5 sm:mb-2">
-                              <span className={`font-semibold text-xs sm:text-base ${isOwnerComment(comment) ? 'text-amber-900' : 'text-gray-900'}`}>
-                                {comment.userName || comment.maskedUserName}
-                              </span>
-                              {isOwnerComment(comment) && (
-                                <span className="text-[9px] sm:text-xs bg-amber-200 text-amber-800 px-1 sm:px-2 py-0.5 rounded">👑 메르님</span>
-                              )}
-                              {comment.sympathyCount !== undefined && comment.sympathyCount > 0 && (
-                                <span className="text-[9px] sm:text-xs text-pink-500">👍 {comment.sympathyCount}</span>
-                              )}
-                              {llmLabelMap[comment.commentNo] && llmLabelMap[comment.commentNo] !== 'neutral' && (
-                                <span className="text-[9px] sm:text-xs bg-violet-100 text-violet-700 px-1 py-0.5 rounded">
-                                  {llmLabelMap[comment.commentNo] === 'positive' ? '긍정' : llmLabelMap[comment.commentNo] === 'negative' ? '부정' : llmLabelMap[comment.commentNo] === 'spam' ? '스팸' : '홍보'}
+                    commentsToShow.map((comment, idx) => {
+                      const owner = isOwnerComment(comment, blogId);
+                      const llmResult = llmResultMap[comment.commentNo];
+                      return (
+                        <li key={idx} className="space-y-1.5 sm:space-y-3">
+                          <div className={`flex items-start gap-1.5 sm:gap-3 p-1.5 sm:p-4 rounded-md sm:rounded-lg border shadow-sm ${owner ? 'bg-amber-50 border-amber-200' : 'bg-white border-gray-200'}`}>
+                            <ProfileImage imageUrl={comment.userProfileImage} isOwner={owner} size="large" />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex flex-wrap items-center gap-1 sm:gap-2 mb-0.5 sm:mb-2">
+                                <span className={`font-semibold text-xs sm:text-base ${owner ? 'text-amber-900' : 'text-gray-900'}`}>
+                                  {comment.userName || comment.maskedUserName}
                                 </span>
+                                {owner && (
+                                  <span className="text-[9px] sm:text-xs bg-amber-200 text-amber-800 px-1 sm:px-2 py-0.5 rounded">👑 주인장</span>
+                                )}
+                                {comment.sympathyCount !== undefined && comment.sympathyCount > 0 && (
+                                  <span className="text-[9px] sm:text-xs text-pink-500">👍 {comment.sympathyCount}</span>
+                                )}
+                                {llmResult && llmResult.label === 'worth_reading' && (
+                                  <span className="text-[9px] sm:text-xs bg-teal-100 text-teal-700 px-1 py-0.5 rounded">
+                                    {llmResult.tag} · {llmResult.score}점
+                                  </span>
+                                )}
+                                <span className="text-[9px] sm:text-xs text-gray-500 bg-gray-100 px-1 sm:px-2 py-0.5 rounded">
+                                  {formatDate(comment.regTime || comment.regTimeGmt)}
+                                </span>
+                              </div>
+                              {comment.isSecret ? (
+                                <p className="text-[11px] sm:text-sm text-gray-400 italic">🔒 비밀 댓글입니다</p>
+                              ) : (
+                                <div className="text-gray-800 text-[11px] sm:text-sm leading-relaxed break-words"
+                                  dangerouslySetInnerHTML={{ __html: convertUrlsToLinks(comment.contents) }} />
                               )}
-                              <span className="text-[9px] sm:text-xs text-gray-500 bg-gray-100 px-1 sm:px-2 py-0.5 rounded">
-                                {formatDate(comment.regTime || comment.regTimeGmt)}
-                              </span>
-                            </div>
-                            {comment.isSecret ? (
-                              <p className="text-[11px] sm:text-sm text-gray-400 italic">🔒 비밀 댓글입니다</p>
-                            ) : (
-                              <div className="text-gray-800 text-[11px] sm:text-sm leading-relaxed break-words"
-                                dangerouslySetInnerHTML={{ __html: convertUrlsToLinks(comment.contents) }} />
-                            )}
-                            {comment.replies.length > 0 && (
-                              <div className="text-[9px] sm:text-xs text-blue-600 mt-0.5 sm:mt-2">
-                                💬 {comment.replies.length}개의 답글
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        {comment.replies.length > 0 && (
-                          <div className="ml-5 sm:ml-8 space-y-1.5 sm:space-y-3">
-                            {comment.replies.map((reply, ri) => (
-                              <div key={ri} className={`flex items-start gap-1 sm:gap-2 p-1.5 sm:p-3 rounded-md sm:rounded-lg border-l-4 ${isOwnerComment(reply) ? 'bg-amber-100 border-l-amber-400' : 'bg-blue-50 border-l-blue-200'}`}>
-                                <span className="text-gray-400 font-bold text-sm sm:text-lg mt-0.5 sm:mt-1">ㄴ</span>
-                                <ProfileImage imageUrl={reply.userProfileImage} isOwner={isOwnerComment(reply)} size="small" />
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex flex-wrap items-center gap-1 sm:gap-2 mb-0.5 sm:mb-1">
-                                    <span className={`font-semibold text-[11px] sm:text-sm ${isOwnerComment(reply) ? 'text-amber-900' : 'text-gray-900'}`}>
-                                      {reply.userName || reply.maskedUserName}
-                                    </span>
-                                    {isOwnerComment(reply) && (
-                                      <span className="text-[9px] sm:text-xs bg-amber-200 text-amber-800 px-1 sm:px-2 py-0.5 rounded">👑 메르님</span>
-                                    )}
-                                    <span className="text-[9px] sm:text-xs text-gray-500 bg-gray-100 px-1 sm:px-2 py-0.5 rounded">
-                                      {formatDate(reply.regTime || reply.regTimeGmt)}
-                                    </span>
-                                  </div>
-                                  {reply.isSecret ? (
-                                    <p className="text-[11px] sm:text-sm text-gray-400 italic">🔒 비밀 댓글입니다</p>
-                                  ) : (
-                                    <div className="text-gray-800 text-[11px] sm:text-sm leading-relaxed break-words"
-                                      dangerouslySetInnerHTML={{ __html: convertUrlsToLinks(reply.contents) }} />
-                                  )}
+                              {comment.replies.length > 0 && (
+                                <div className="text-[9px] sm:text-xs text-blue-600 mt-0.5 sm:mt-2">
+                                  💬 {comment.replies.length}개의 답글
                                 </div>
-                              </div>
-                            ))}
+                              )}
+                            </div>
                           </div>
-                        )}
-                      </li>
-                    ))
+
+                          {comment.replies.length > 0 && (
+                            <div className="ml-5 sm:ml-8 space-y-1.5 sm:space-y-3">
+                              {comment.replies.map((reply, ri) => {
+                                const replyOwner = isOwnerComment(reply, blogId);
+                                return (
+                                  <div key={ri} className={`flex items-start gap-1 sm:gap-2 p-1.5 sm:p-3 rounded-md sm:rounded-lg border-l-4 ${replyOwner ? 'bg-amber-100 border-l-amber-400' : 'bg-blue-50 border-l-blue-200'}`}>
+                                    <span className="text-gray-400 font-bold text-sm sm:text-lg mt-0.5 sm:mt-1">ㄴ</span>
+                                    <ProfileImage imageUrl={reply.userProfileImage} isOwner={replyOwner} size="small" />
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex flex-wrap items-center gap-1 sm:gap-2 mb-0.5 sm:mb-1">
+                                        <span className={`font-semibold text-[11px] sm:text-sm ${replyOwner ? 'text-amber-900' : 'text-gray-900'}`}>
+                                          {reply.userName || reply.maskedUserName}
+                                        </span>
+                                        {replyOwner && (
+                                          <span className="text-[9px] sm:text-xs bg-amber-200 text-amber-800 px-1 sm:px-2 py-0.5 rounded">👑 주인장</span>
+                                        )}
+                                        <span className="text-[9px] sm:text-xs text-gray-500 bg-gray-100 px-1 sm:px-2 py-0.5 rounded">
+                                          {formatDate(reply.regTime || reply.regTimeGmt)}
+                                        </span>
+                                      </div>
+                                      {reply.isSecret ? (
+                                        <p className="text-[11px] sm:text-sm text-gray-400 italic">🔒 비밀 댓글입니다</p>
+                                      ) : (
+                                        <div className="text-gray-800 text-[11px] sm:text-sm leading-relaxed break-words"
+                                          dangerouslySetInnerHTML={{ __html: convertUrlsToLinks(reply.contents) }} />
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </li>
+                      );
+                    })
                   )}
                 </ul>
               )}
