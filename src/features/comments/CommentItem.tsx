@@ -124,11 +124,11 @@ export default function CommentItem({ comment, searchKeyword = '', regexMode = f
             <span className="text-xs text-gray-400 dark:text-gray-500">
               {formatDate(comment.regTime || comment.regTimeGmt)}
             </span>
-            {comment._llmLabel && comment._llmLabel !== 'neutral' && (
-                  <span className="text-xs px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300">
-                    {comment._llmLabel === 'positive' ? '긍정' : comment._llmLabel === 'negative' ? '부정' : comment._llmLabel === 'spam' ? '스팸' : comment._llmLabel === 'promo' ? '홍보' : ''}
-                  </span>
-                )}
+            {comment._llmLabel === 'worth_reading' && comment._llmScore !== undefined && comment._llmTag && (
+              <span className="text-xs px-1.5 py-0.5 rounded bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300">
+                {comment._llmTag} · {comment._llmScore}점
+              </span>
+            )}
                 {comment._isHidden && (
               <span className="text-xs bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-400 px-1.5 py-0.5 rounded">
                 숨김
