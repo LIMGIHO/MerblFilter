@@ -9,9 +9,9 @@ import { useBlogStore } from '@/store/blogStore';
 import dynamic from 'next/dynamic';
 import type { SelectedPost } from '@/features/llm/AISidePanel';
 import { AISidePanelBoundary } from '@/components/AISidePanelBoundary';
-// 네이버 읽음 처리 — SameSite=Lax 쿠키 정책으로 cross-site 호출 불가 (Chrome 80+)
-// 코드는 보존 (크롬 확장 개발 시 재활용 예정). 호출은 비활성화.
-// import { markNaverPostAsRead } from '@/lib/naverRead';
+// 네이버 읽음 처리 — 순수 웹 fetch는 SameSite=Lax로 불가(구버전 naverRead.ts 보존).
+// 현재는 Tampermonkey 유저스크립트(naver-read.user.js)에 postMessage로 위임한다.
+import { sendMarkRead } from '@/lib/naverReadBridge';
 
 const AISidePanel = dynamic(() => import('@/features/llm/AISidePanel'), { ssr: false });
 const CommentsPanel = dynamic(() => import('./CommentsPanel'), { ssr: false });
@@ -336,7 +336,12 @@ export default function PostList() {
                             href={`https://blog.naver.com/${activeBlogId}/${post.postId}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            onClick={() => markAsRead(post.postId)}
+                            onClick={() => {
+                              markAsRead(post.postId);
+                              // 유저스크립트가 설치돼 있으면 네이버 서버에도 읽음처리.
+                              // 미설치 시 아무 일도 일어나지 않음(부작용 없음).
+                              sendMarkRead(activeBlogId, post.postId);
+                            }}
                             className="flex-1 min-w-0"
                           >
                             <h2 className={`text-base sm:text-lg font-semibold leading-snug tracking-tight
