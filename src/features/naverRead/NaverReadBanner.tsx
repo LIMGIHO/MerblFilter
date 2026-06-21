@@ -205,14 +205,21 @@ export default function NaverReadBanner() {
             <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">
               네이버 읽음처리 스크립트를 설치하면, 여기서 클릭한 글이 네이버에서도 읽음으로 표시됩니다.
             </p>
-            <p className="text-xs text-amber-800/80 dark:text-amber-300/70 mt-1 leading-relaxed">
-              ① <a href={TAMPERMONKEY_URL} target="_blank" rel="noopener noreferrer" className="underline hover:text-amber-900 dark:hover:text-amber-100">Tampermonkey</a> 확장 설치 →
-              ② 확장 세부정보에서 &quot;사용자 스크립트 허용&quot; 토글 ON
-              (<code className="px-1 rounded bg-amber-100 dark:bg-amber-800/40">{TAMPERMONKEY_SETTINGS_URL}</code>) →
-              ③ 아래 [설치하기]
-              <br />
-              같은 브라우저에서 네이버에 로그인되어 있어야 동작합니다.
-            </p>
+            <div className="text-xs text-amber-800/80 dark:text-amber-300/70 mt-1.5 leading-relaxed space-y-1">
+              <p>
+                ① <a href={TAMPERMONKEY_URL} target="_blank" rel="noopener noreferrer" className="underline hover:text-amber-900 dark:hover:text-amber-100">Tampermonkey</a> 확장 설치
+              </p>
+              <p>
+                ② 확장 세부정보 → &quot;사용자 스크립트 허용&quot; 토글 ON
+                <code className="ml-1 px-1 rounded bg-amber-100 dark:bg-amber-800/40">{TAMPERMONKEY_SETTINGS_URL}</code>
+              </p>
+              <p>③ 아래 [설치하기] 클릭</p>
+              <p className="text-amber-700/70 dark:text-amber-400/60 pt-1">
+                설치 후 1~2분 지나면 자동으로 인식됩니다.
+                <br />
+                같은 브라우저에서 네이버에 로그인되어 있어야 동작합니다.
+              </p>
+            </div>
             <div className="flex flex-wrap items-center gap-3 mt-2.5 text-xs">
               <a
                 href={INSTALL_URL}
