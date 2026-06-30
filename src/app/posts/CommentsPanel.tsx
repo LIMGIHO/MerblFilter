@@ -326,7 +326,7 @@ export default function CommentsPanel({
         )}
 
         {/* 댓글 목록 */}
-        <div className="flex-1 overflow-y-auto px-3 py-2 space-y-2">
+        <div className="flex-1 overflow-y-auto overscroll-contain px-3 py-2 space-y-2">
           {isLoading ? (
             <div className="flex items-center justify-center h-32 text-slate-400">
               <span className="w-5 h-5 border-2 border-teal-400 border-t-transparent rounded-full animate-spin" />
