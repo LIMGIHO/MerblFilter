@@ -35,6 +35,17 @@ export default function BlockMenu({ userId, userName, x, y, onClose }: BlockMenu
       <div className="px-3 py-1.5 text-xs text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-800 font-medium">
         {displayName}
       </div>
+      {userId && (
+        <a
+          href={`https://blog.naver.com/${userId}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="w-full text-left px-3 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 flex items-center gap-2"
+          onClick={onClose}
+        >
+          <span>🔗</span> 블로그 보기
+        </a>
+      )}
       {!isBlocked ? (
         <button
           className="w-full text-left px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2"

@@ -109,10 +109,17 @@ function stripHtml(html: string): string {
 /**
  * 본문 텍스트에서 "한줄 코멘트" 이후 텍스트를 추출
  * 예: "한줄 코멘트.. 금리는 내려도 집값은 안 내린다" → "금리는 내려도 집값은 안 내린다"
+ *
+ * 주의: 메르 글은 상단에 '이전 글 소개'로 그 글의 한줄코멘트를 먼저 인용하고,
+ * 현재 글의 진짜 한줄코멘트는 맨 아래에 둔다. 따라서 첫 매치가 아니라
+ * **마지막 매치**를 잡아야 현재 글의 코멘트가 나온다.
  */
 function extractOneLiner(text: string): string {
-  const match = text.match(/한\s*줄\s*코멘트\s*[.．·:：]*\s*(.+?)(\n|$)/i);
-  return match ? match[1].trim() : '';
+  const re = /한\s*줄\s*코멘트\s*[.．·:：]*\s*(.+?)(\n|$)/gi;
+  let m: RegExpExecArray | null;
+  let last: RegExpExecArray | null = null;
+  while ((m = re.exec(text)) !== null) last = m;
+  return last ? last[1].trim() : '';
 }
 
 /**

@@ -618,7 +618,7 @@ export default function AISidePanel({ isOpen, onClose, selectedPost, width, onWi
         )}
 
         {/* 대화 목록 */}
-        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+        <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-4 space-y-3">
           {/* 한줄 코멘트 고정 카드 */}
           {(oneLiner || isFetchingOneLiner) && (
             <div className="mb-3 px-3 py-2.5 rounded-xl bg-teal-50 dark:bg-teal-900/20 border border-teal-200 dark:border-teal-800 flex-shrink-0">
