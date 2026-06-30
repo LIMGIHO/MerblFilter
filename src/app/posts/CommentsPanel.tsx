@@ -79,22 +79,32 @@ export default function CommentsPanel({
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const prevPostIdRef = useRef<string>('');
 
-  const { settings, addBlockedUser, addFavoriteUser } = useFilterStore();
+  const { settings, addBlockedUser, addFavoriteUser, removeBlockedUser, removeFavoriteUser } = useFilterStore();
   const { phase1ScoreThreshold } = useLlmStore();
 
   function handleBlock(comment: BlogComment) {
     const target = comment.profileUserId || comment.userName;
     if (!target || isOwnerComment(comment, blogId)) return;
-    addBlockedUser(target);
-    setToastMsg(`"${target}" 차단됨`);
+    if (settings.blockedUsers.includes(target)) {
+      removeBlockedUser(target);
+      setToastMsg(`"${target}" 차단 해제됨`);
+    } else {
+      addBlockedUser(target);
+      setToastMsg(`"${target}" 차단됨`);
+    }
     setTimeout(() => setToastMsg(null), 2500);
   }
 
   function handleFavorite(comment: BlogComment) {
     const target = comment.profileUserId || comment.userName;
     if (!target || isOwnerComment(comment, blogId)) return;
-    addFavoriteUser(target);
-    setToastMsg(`"${target}" 선호 유저 등록됨`);
+    if (settings.favoriteUsers.includes(target)) {
+      removeFavoriteUser(target);
+      setToastMsg(`"${target}" 선호 유저 해제됨`);
+    } else {
+      addFavoriteUser(target);
+      setToastMsg(`"${target}" 선호 유저 등록됨`);
+    }
     setTimeout(() => setToastMsg(null), 2500);
   }
 
@@ -344,31 +354,48 @@ export default function CommentsPanel({
                   <ProfileImage imageUrl={comment.userProfileImage} isOwner={isOwnerComment(comment, blogId)} size="large" />
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-1 mb-1">
-                      <span className={`font-semibold text-xs ${isOwnerComment(comment, blogId) ? 'text-amber-900 dark:text-amber-300' : 'text-slate-800 dark:text-slate-200'}`}>
-                        {comment.userName || comment.maskedUserName}
-                      </span>
+                      {comment.profileUserId ? (
+                        <a
+                          href={`https://blog.naver.com/${comment.profileUserId}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title="블로그 보기"
+                          className={`font-semibold text-xs hover:underline ${isOwnerComment(comment, blogId) ? 'text-amber-900 dark:text-amber-300' : 'text-slate-800 dark:text-slate-200'}`}
+                        >
+                          {comment.userName || comment.maskedUserName}
+                        </a>
+                      ) : (
+                        <span className={`font-semibold text-xs ${isOwnerComment(comment, blogId) ? 'text-amber-900 dark:text-amber-300' : 'text-slate-800 dark:text-slate-200'}`}>
+                          {comment.userName || comment.maskedUserName}
+                        </span>
+                      )}
                       {isOwnerComment(comment, blogId) && (
                         <span className="text-[9px] bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-200 px-1.5 py-0.5 rounded">👑 주인장</span>
                       )}
-                      {/* hover 시 노출 버튼 (주인장 제외) */}
-                      {!isOwnerComment(comment, blogId) && (
-                        <>
-                          <button
-                            onClick={() => handleFavorite(comment)}
-                            className="opacity-0 group-hover:opacity-100 text-[9px] text-slate-400 hover:text-teal-500 hover:bg-teal-50 dark:hover:bg-teal-900/20 px-1.5 py-0.5 rounded transition-all"
-                            title="선호 유저 등록"
-                          >
-                            ⭐
-                          </button>
-                          <button
-                            onClick={() => handleBlock(comment)}
-                            className="opacity-0 group-hover:opacity-100 text-[9px] text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 px-1.5 py-0.5 rounded transition-all"
-                            title="이 사용자 차단"
-                          >
-                            🚫
-                          </button>
-                        </>
-                      )}
+                      {/* 선호/차단 버튼 — 등록되면 항상 표시+강조, 토글 (주인장 제외) */}
+                      {!isOwnerComment(comment, blogId) && (() => {
+                        const target = comment.profileUserId || comment.userName || '';
+                        const fav = settings.favoriteUsers.includes(target);
+                        const blk = settings.blockedUsers.includes(target);
+                        return (
+                          <>
+                            <button
+                              onClick={() => handleFavorite(comment)}
+                              className={`text-[9px] px-1.5 py-0.5 rounded transition-all ${fav ? 'opacity-100 text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-900/30' : 'opacity-0 group-hover:opacity-100 text-slate-400 hover:text-teal-500 hover:bg-teal-50 dark:hover:bg-teal-900/20'}`}
+                              title={fav ? '선호 해제' : '선호 유저 등록'}
+                            >
+                              ⭐
+                            </button>
+                            <button
+                              onClick={() => handleBlock(comment)}
+                              className={`text-[9px] px-1.5 py-0.5 rounded transition-all ${blk ? 'opacity-100 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/30' : 'opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20'}`}
+                              title={blk ? '차단 해제' : '이 사용자 차단'}
+                            >
+                              🚫
+                            </button>
+                          </>
+                        );
+                      })()}
                       {comment.sympathyCount !== undefined && comment.sympathyCount > 0 && (
                         <span className="text-[9px] text-pink-500">👍 {comment.sympathyCount}</span>
                       )}
@@ -415,31 +442,48 @@ export default function CommentsPanel({
                         <ProfileImage imageUrl={reply.userProfileImage} isOwner={isOwnerComment(reply, blogId)} size="small" />
                         <div className="flex-1 min-w-0">
                           <div className="flex flex-wrap items-center gap-1 mb-0.5">
-                            <span className={`font-semibold text-xs ${isOwnerComment(reply, blogId) ? 'text-amber-900 dark:text-amber-300' : 'text-slate-800 dark:text-slate-200'}`}>
-                              {reply.userName || reply.maskedUserName}
-                            </span>
+                            {reply.profileUserId ? (
+                              <a
+                                href={`https://blog.naver.com/${reply.profileUserId}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                title="블로그 보기"
+                                className={`font-semibold text-xs hover:underline ${isOwnerComment(reply, blogId) ? 'text-amber-900 dark:text-amber-300' : 'text-slate-800 dark:text-slate-200'}`}
+                              >
+                                {reply.userName || reply.maskedUserName}
+                              </a>
+                            ) : (
+                              <span className={`font-semibold text-xs ${isOwnerComment(reply, blogId) ? 'text-amber-900 dark:text-amber-300' : 'text-slate-800 dark:text-slate-200'}`}>
+                                {reply.userName || reply.maskedUserName}
+                              </span>
+                            )}
                             {isOwnerComment(reply, blogId) && (
                               <span className="text-[9px] bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-200 px-1.5 py-0.5 rounded">👑 주인장</span>
                             )}
-                            {/* hover 시 노출 버튼 (주인장 제외) */}
-                            {!isOwnerComment(reply, blogId) && (
-                              <>
-                                <button
-                                  onClick={() => handleFavorite(reply)}
-                                  className="opacity-0 group-hover:opacity-100 text-[9px] text-slate-400 hover:text-teal-500 hover:bg-teal-50 dark:hover:bg-teal-900/20 px-1.5 py-0.5 rounded transition-all"
-                                  title="선호 유저 등록"
-                                >
-                                  ⭐
-                                </button>
-                                <button
-                                  onClick={() => handleBlock(reply)}
-                                  className="opacity-0 group-hover:opacity-100 text-[9px] text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 px-1.5 py-0.5 rounded transition-all"
-                                  title="이 사용자 차단"
-                                >
-                                  🚫
-                                </button>
-                              </>
-                            )}
+                            {/* 선호/차단 버튼 — 등록되면 항상 표시+강조, 토글 (주인장 제외) */}
+                            {!isOwnerComment(reply, blogId) && (() => {
+                              const target = reply.profileUserId || reply.userName || '';
+                              const fav = settings.favoriteUsers.includes(target);
+                              const blk = settings.blockedUsers.includes(target);
+                              return (
+                                <>
+                                  <button
+                                    onClick={() => handleFavorite(reply)}
+                                    className={`text-[9px] px-1.5 py-0.5 rounded transition-all ${fav ? 'opacity-100 text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-900/30' : 'opacity-0 group-hover:opacity-100 text-slate-400 hover:text-teal-500 hover:bg-teal-50 dark:hover:bg-teal-900/20'}`}
+                                    title={fav ? '선호 해제' : '선호 유저 등록'}
+                                  >
+                                    ⭐
+                                  </button>
+                                  <button
+                                    onClick={() => handleBlock(reply)}
+                                    className={`text-[9px] px-1.5 py-0.5 rounded transition-all ${blk ? 'opacity-100 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/30' : 'opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20'}`}
+                                    title={blk ? '차단 해제' : '이 사용자 차단'}
+                                  >
+                                    🚫
+                                  </button>
+                                </>
+                              );
+                            })()}
                             <span className="text-[9px] text-slate-400 bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded ml-auto">
                               {formatDate(reply.regTime || reply.regTimeGmt)}
                             </span>
