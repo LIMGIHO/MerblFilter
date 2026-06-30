@@ -192,13 +192,27 @@ export default function PostList() {
   }
 
   const panelOpen = panelMode !== null;
+  // 데스크탑에서 패널이 열리면 목록을 패널 너비만큼 왼쪽으로 밀고(marginRight),
+  // 목록 자체를 스크롤 컨테이너로 만든다(height:100vh + overflowY).
+  // → 목록 스크롤바가 패널 왼쪽 경계에 붙어, 패널 스크롤바와 깔끔히 분리된다.
   const shiftStyle: React.CSSProperties =
-    isDesktop && panelOpen ? { marginRight: `${panelWidth}px` } : {};
+    isDesktop && panelOpen
+      ? { marginRight: `${panelWidth}px`, height: '100vh', overflowY: 'auto' }
+      : {};
 
   const setContentPanelOffset = useUiStore((s) => s.setContentPanelOffset);
   useEffect(() => {
     setContentPanelOffset(isDesktop && panelOpen ? panelWidth : 0);
   }, [isDesktop, panelOpen, panelWidth, setContentPanelOffset]);
+
+  // 패널 열렸을 때(데스크탑) body 스크롤 잠금 — 목록은 위 컨테이너가 따로 스크롤하므로
+  // body 스크롤바(뷰포트 끝, 패널과 겹침)가 생기지 않게 한다.
+  useEffect(() => {
+    if (!(isDesktop && panelOpen)) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, [isDesktop, panelOpen]);
 
   return (
     <>
