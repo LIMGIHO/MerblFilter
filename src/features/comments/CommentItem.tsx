@@ -31,7 +31,9 @@ function highlightText(text: string, keyword: string, regexMode: boolean): React
 }
 
 function convertUrlsToLinks(text: string): string {
-  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  // [^\s<>"'] — URL을 공백뿐 아니라 HTML 태그 시작(<), 따옴표에서도 끊는다.
+  // (댓글 본문이 <br> 포함 HTML이라 [^\s]+면 URL 뒤 <br><br>텍스트까지 먹어버림)
+  const urlRegex = /(https?:\/\/[^\s<>"']+)/g;
   return text.replace(
     urlRegex,
     (url) => `<a href="${url}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800 dark:text-blue-400 underline">${url}</a>`

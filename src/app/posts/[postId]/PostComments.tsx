@@ -14,7 +14,8 @@ interface CommentWithReplies extends BlogComment {
 }
 
 function convertUrlsToLinks(text: string) {
-  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  // [^\s<>"'] — URL을 HTML 태그 시작(<)·따옴표에서도 끊어 <br> 등을 먹지 않게
+  const urlRegex = /(https?:\/\/[^\s<>"']+)/g;
   return text.replace(urlRegex, (url) => `<a href="${url}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800 underline">${url}</a>`);
 }
 

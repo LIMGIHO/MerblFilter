@@ -53,7 +53,8 @@ function formatDate(dateStr?: string) {
 }
 
 function convertUrlsToLinks(text: string) {
-  return text.replace(/(https?:\/\/[^\s]+)/g, (url) =>
+  // [^\s<>"'] — URL을 HTML 태그 시작(<)·따옴표에서도 끊어 <br> 등을 먹지 않게
+  return text.replace(/(https?:\/\/[^\s<>"']+)/g, (url) =>
     `<a href="${url}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800 underline">${url}</a>`
   );
 }
